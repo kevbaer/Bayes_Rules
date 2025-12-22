@@ -1,0 +1,51 @@
+---
+title: "Bayes_Rules!_Notebook"
+format: html
+editor: visual
+---
+
+## Chapter 2: Bayes' Rule
+
+```{r}
+library(bayesrules)
+library(tidyverse)
+```
+
+```{r}
+data(fake_news)
+fake_news <- fake_news |> as_tibble()
+
+fake_news |> 
+  count(type)
+```
+
+```{r}
+fake_news |> 
+  summarize(n = n(), .by = c(title_has_excl, type))
+```
+
+```{r}
+sim_params <- tibble(type = c("real", "fake"),
+                     prior = c(0.6, 0.4))
+
+set.seed(1234)
+
+sims <- sample(sim_params$type, size = 10000, prob = sim_params$prior, replace = TRUE) |>
+  enframe(value = "type") |> 
+  mutate(data_model = case_when(
+    type == "fake" ~ .2667,
+    type == "real" ~ .0222
+  )) |> 
+  rowwise() |> 
+  mutate(usage = sample(
+    c("no", "yes"), size = 1, prob = c(1- data_model, data_model)
+    )) |> 
+  ungroup()
+
+sims |> 
+  summarize(n = n(), .by = c(usage, type))
+```
+
+```{r}
+
+```
