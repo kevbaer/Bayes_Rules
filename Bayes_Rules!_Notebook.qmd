@@ -9,6 +9,8 @@ editor: visual
 ```{r}
 library(bayesrules)
 library(tidyverse)
+
+set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
 ```
 
 ```{r}
@@ -44,6 +46,42 @@ sims <- sample(sim_params$type, size = 10000, prob = sim_params$prior, replace =
 
 sims |> 
   summarize(n = n(), .by = c(usage, type))
+```
+
+```{r}
+ggplot(sims) +
+  aes(x = type, fill = usage) +
+  geom_bar(position = "fill")
+```
+
+```{r}
+data("pop_vs_soda")
+
+pop_vs_soda |> 
+  summarize(n = n(), .by = c(pop, region))
+```
+
+```{r}
+chess <- c(0.2, .5, .8)
+prior <- c(0.1, 0.25, 0.65)
+
+set.seed(1234)
+chess_sim <- tibble(
+  pi = sample(chess, size = 10000, prob = prior, replace = TRUE) 
+)|> 
+  mutate(y = rbinom(n(), size = 6, prob = pi))
+
+chess_sim |> 
+  count(pi) |> 
+  mutate(prop = n / sum(n))
+```
+
+```{r}
+chess_sim |> 
+  ggplot() +
+  aes(x = y) +
+  stat_count(aes(y = after_stat(prop))) +
+  facet_wrap(~pi)
 ```
 
 ```{r}
