@@ -84,6 +84,72 @@ chess_sim |>
   facet_wrap(~pi)
 ```
 
-```{r}
+## Chapter 3: The Beta-Binomial Bayesian Model
 
+```{r}
+library(bayesrules)
+library(tidyverse)
+library(extraDistr)
+library(brms)
+library(tidybayes)
+```
+
+```{r}
+ggplot() +
+  geom_function(fun = ~dbeta(., 45, 55), n = 10000) +
+  labs(title = "dbeta(45, 55)")
+```
+
+```{r}
+model_election <- brm(
+  bf(support | trials(n_in_poll) ~ 0 + Intercept),
+  data = list(support = 30, n_in_poll = 50),
+  family = binomial(link = "identity"),
+  prior(beta(45, 55), class = b, lb = 0, ub = 1),
+  iter = 5000, warmup = 1000, seed = 1234, backend = "rstan",
+  cores = 8
+)
+```
+
+```{r}
+model_election |> 
+  gather_draws(b_Intercept) |> 
+  ggplot(aes(x = .value)) +
+  stat_halfeye(fill = "firebrick3") +
+  labs(x = "pi", title = "Posterior for Michelle's support")
+```
+
+```{r}
+model_election |> 
+  gather_draws(b_Intercept) |> 
+  ggplot(aes(x = .value)) +
+   stat_function(geom = "area", 
+                fun = ~dbeta(., 45, 55), aes(fill = "Prior"), alpha = .75) +
+  geom_density(aes(fill = "Posterior"), color = NA, alpha = 0.75) +
+  scale_fill_manual(values = c("firebrick3", "grey37")) +
+  labs(x = "pi", title = "Posterior (Red) + Prior (Gray) for Michelle's support")
+```
+
+```{r}
+model_milgram <- brm(
+  bf(obey | trials(participants) ~ 0 + Intercept),
+  data = list(obey = 26, participants = 40),
+  family = binomial(link = "identity"),
+  prior(beta(1, 10), class = b, lb = 0, ub = 1),
+  iter = 5000, warmup = 1000, seed = 1234,
+  backend = "rstan", cores = 8
+)
+```
+
+```{r}
+model_milgram |> 
+  gather_draws(b_Intercept) |> 
+  ggplot() +
+  aes(x = .value) +
+  geom_density(aes(fill = "Posterior"), color = NA, alpha = .75) +
+  stat_function(aes(fill = "Prior"), fun = ~dbeta(., 1, 10), 
+                alpha = .75, geom = "area") +
+  xlim(0, 1) +
+  scale_fill_manual(values = c("firebrick3", "grey37")) +
+  ggtitle("Listening to Authority: Prior (Gray) vs Posterior (Red)")
 ```
