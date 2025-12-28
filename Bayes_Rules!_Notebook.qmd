@@ -153,3 +153,159 @@ model_milgram |>
   scale_fill_manual(values = c("firebrick3", "grey37")) +
   ggtitle("Listening to Authority: Prior (Gray) vs Posterior (Red)")
 ```
+
+## Chapter 6: Approximating the Posterior
+
+```{r}
+library(bayesrules)
+library(tidyverse)
+library(cmdstanr)
+library(posterior)
+library(tidybayes)
+set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
+```
+
+```{r}
+grid_data <- tibble(pi_grid = seq(0, 1, length.out = 6)) |> 
+  mutate(prior = dbeta(pi_grid, 2, 2),
+         likelihood = dbinom(9, 10, pi_grid)) |> 
+  mutate(unnormalized = likelihood * prior,
+         posterior = unnormalized / sum (unnormalized))
+
+grid_data
+```
+
+```{r}
+ggplot(grid_data) +
+  aes(x = pi_grid, y = posterior) +
+  geom_point() +
+  geom_segment(aes(xend = pi_grid, yend = 0))
+```
+
+```{r}
+posterior_samples <- grid_data |> 
+  slice_sample(n = 10000, replace = TRUE, weight_by = posterior) 
+
+posterior_samples|> 
+  count(pi_grid)
+```
+
+```{r}
+ggplot(posterior_samples) +
+  aes(x = pi_grid) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 color = "white", binwidth = 0.1, boundary = 0) +
+  stat_function(fun = ~dbeta(., 11, 3)) +
+  xlim(c(0, 1))
+```
+
+```{r}
+grid_data <- tibble(pi_grid = seq(0, 1, length.out = 10000)) |> 
+  mutate(prior = dbeta(pi_grid, 2, 2),
+         likelihood = dbinom(9, 10, pi_grid)) |> 
+  mutate(unnormalized = likelihood * prior,
+         posterior = unnormalized / sum (unnormalized))
+
+posterior_samples <- grid_data |> 
+  slice_sample(n = 10000, replace = TRUE, weight_by = posterior) 
+
+ggplot(posterior_samples) +
+  aes(x = pi_grid) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 color = "white", binwidth = 0.01, boundary = 0) +
+  stat_function(fun = ~dbeta(., 11, 3)) +
+  xlim(c(0, 1))
+```
+
+```{r}
+bb_sim <- cmdstan_model("06_stan/bb_sim.stan")
+```
+
+```{r}
+bb_sim_samples <- bb_sim$sample(
+  data = list(Y = 9), 
+  parallel_chains = 4,
+  iter_warmup = 2500,
+  iter_sampling = 2500,
+  refresh = 0,
+  seed = 1234
+)
+```
+
+```{r}
+bb_sim_samples |> 
+  spread_draws(pi) |> 
+  head(4)
+```
+
+```{r}
+bb_sim_samples |> 
+  spread_draws(pi) |> 
+  ggplot() + 
+  aes(x = pi) +
+  stat_density(geom = "area", fill = "firebrick3") +
+  stat_function(fun = ~dbeta(., 11, 3), color = "grey6", linewidth = 2)
+```
+
+```{r}
+bb_sim_samples |>
+  gather_draws(pi) |> 
+  ggplot(aes(x = .iteration, y = .value, color = as.factor(.chain))) +
+  geom_line(size = 0.1) +
+  labs(color = "Chain")
+```
+
+Looks random!
+
+```{r}
+bb_sim_samples |>
+  spread_draws(pi) |> 
+  mutate(draw_rank = rank(pi)) |> 
+  ggplot(aes(x = draw_rank)) +
+  stat_bin(aes(color = factor(.chain)), geom = "step", binwidth = 500, 
+           position = position_identity(), boundary = 0) + 
+  labs(color = "Chain") +
+  theme(axis.text.y = element_blank(), axis.title.y = element_blank(), axis.ticks.y = element_blank())
+```
+
+According to McElreath (p. 284),
+
+> If the chains are exploring the same space efficiently, the histograms should be similar to one another and largely overlapping.
+
+```{r}
+bb_sim_samples |> 
+  spread_draws(pi) |> 
+  ggplot() +
+  aes(x = pi, color = factor(.chain)) +
+  geom_density() +
+  labs(color = "Chain")
+```
+
+Looks consistent across the four chains!
+
+```{r}
+brms::neff_ratio(bb_sim_samples)
+```
+
+“Our 20,000 Markov chain values are about as useful as only 6800 independent samples (0.34 × 20000).” Happy that this number is greater than .1
+
+```{r}
+bayesplot::mcmc_acf(bb_sim_samples$draws(variables = "pi"))
+```
+
+Dies off pretty quick!
+
+```{r}
+rhat_basic(bb_sim_samples$draws(variables = "pi"))
+```
+
+Not greater than 1.01 so good!
+
+```{r}
+bb_sim_samples |>
+  gather_draws(pi) |> 
+  ggplot(aes(x = .iteration, y = .value)) +
+  geom_line(size = 0.1) 
+```
+
+Looks random enough
