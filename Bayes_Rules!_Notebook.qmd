@@ -308,4 +308,63 @@ bb_sim_samples |>
   geom_line(size = 0.1) 
 ```
 
-Looks random enough
+Looks random enough.
+
+## Chapter 7: Markov Chain Monte Carlo under the hood
+
+```{r}
+library(tidyverse)
+set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
+```
+
+"Think of Markov chains as a tour around the range of posterior possible values of a parameter (like µ or π or whatever). The chains move around that parameter and hopefully converge around it, but the chains need a tour manager to do that properly."
+
+```{r}
+one_mh_iteration <- function(w, current){
+  proposal <- runif(1, min = current-w, max = current + w)
+  proposal_plausibility <- dnorm(proposal, 0, 1) * dnorm(6.25, proposal, 0.75)
+  current_plausibility <- dnorm(current, 0, 1) * dnorm(6.25, current, 0.75)
+  
+  alpha <- min(1, proposal_plausibility / current_plausibility)
+  next_stop <- sample(c(proposal, current), size = 1, prob = c(alpha, 1 - alpha))
+  
+  return(tibble(proposal, alpha, next_stop))
+}
+
+set.seed(8)
+one_mh_iteration(w = 1, current = 3)
+```
+
+```{r}
+mh_tour <- function(start = 3, N, w){
+  current <- start
+  mu <- rep(0, N)
+  
+  for(i in 1:N){
+    where_next <- one_mh_iteration(w = w, current = current)
+    
+    mu[i] <- where_next$next_stop
+    
+    current <- where_next$next_stop
+  }
+  
+  return(tibble(.iteration = c(1:N), mu))
+}
+```
+
+```{r}
+set.seed(84735)
+tour_1 <- mh_tour(start = 3, N = 5000, w = 1)
+
+tour_1 |> 
+  ggplot(aes(x = .iteration, y = mu)) +
+  geom_line(size = 0.1, alpha = 0.75)
+```
+
+```{r}
+tour_1 |> 
+  ggplot(aes(x = mu)) +
+  geom_histogram(aes(y = after_stat(density)),binwidth = 0.25, 
+                  color = "white", fill = "firebrick3") +
+  geom_function(fun = ~dnorm(., 4, 0.6), color = "grey12")
+```
