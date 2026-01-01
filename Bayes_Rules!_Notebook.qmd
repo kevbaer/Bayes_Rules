@@ -368,3 +368,181 @@ tour_1 |>
                   color = "white", fill = "firebrick3") +
   geom_function(fun = ~dnorm(., 4, 0.6), color = "grey12")
 ```
+
+## Chapter 8: Posterior Inference and Prediction
+
+```{r}
+library(bayesrules)
+library(tidyverse)
+library(brms)
+library(cmdstanr)
+library(tidybayes)
+library(ggdist)
+
+set_theme(theme_bw(base_family = "Barlow", base_size = 16))
+```
+
+Our prior looks like
+
+```{r}
+ggplot() +
+  stat_function(fun = ~dbeta(., 4, 6), geom = "area", fill = "#f6b97b")
+```
+
+```{r}
+data("moma_sample")
+glimpse(moma_sample, width = 80)
+```
+
+```{r}
+moma_sample |> 
+  count(genx)
+```
+
+```{r}
+ggplot() +
+  stat_function(aes(fill = "Prior: Beta (4, 6)"), 
+                fun = ~dbeta(., 4, 6), geom = "area") +
+  stat_function(aes(fill = "Posterior: Beta (18, 92)"), 
+                fun = ~dbeta(., 18, 92), geom = "area") +
+  scale_fill_manual(values = c("#940034", "#f6b97b")) +
+  theme(legend.position = "inside", legend.position.inside =  c(.8, .8))
+```
+
+```{r}
+# BRMS version of approx
+
+model_pi_brms <- brm(
+  bf(num_genx | trials(artworks) ~ 0 + Intercept),
+  data = list(num_genx = 14, artworks = 100),
+  family = binomial(link = "identity"),
+  prior(beta(4, 6), class = b, lb = 0, ub = 1),
+  sample_prior = TRUE,
+  iter = 5000, 
+  warmup = 1000,
+  seed = 1234, 
+  backend = "cmdstanr", cores = 8, refresh = 0
+)
+```
+
+```{r}
+# stan version of approx
+
+model_pi_stan <- cmdstan_model("08_stan/genx.stan")
+```
+
+```{r}
+pi_stan_samples <- model_pi_stan$sample(
+  data = list(artworks = 100, num_genx = 14),
+  parallel_chains = 4, iter_warmup = 2500, iter_sampling = 2500,
+  refresh = 0, seed = 1234
+)
+```
+
+95% credible interval:
+
+```{r}
+qbeta(c(0.025, 0.975), 18, 92)
+```
+
+95% credible interval with highest posterior densities:
+
+```{r}
+pi_stan_samples |> 
+  spread_draws(pi) |> 
+  median_hdci(pi, width = .95)
+```
+
+```{r}
+pi_stan_samples |> 
+  spread_draws(pi) |> 
+  ggplot() +
+  aes(x = pi) +
+  stat_slab(aes(fill_ramp = after_stat(level)),
+            .width = c(0.5, 0.95, 1),
+            point_interval = "median_hdci",
+            fill = "#d65616") +
+  scale_fill_ramp_discrete(range = c(0.2, 1)) +
+  labs(fill_ramp = "Credible Interval") +
+  theme(legend.position = "inside", legend.position.inside = c(.83, .8))
+```
+
+```{r}
+pi_stan_samples |> 
+  spread_draws(pi) |> 
+  count(pi < .2) |> 
+  mutate(prob = n/sum(n))
+```
+
+84.73% chance that pi is less than 0.2
+
+```{r}
+pi_stan_samples |> 
+  spread_draws(pi) |> 
+  ggplot(aes(x = pi)) +
+  stat_halfeye(aes(fill_ramp = after_stat(x < 0.2)), fill = "#2db25f") +
+  scale_fill_ramp_discrete(from = "#8ee7af", guide = "none") +
+  geom_vline(xintercept = .2, linewidth = .5, color = "grey35")
+```
+
+Region of Practical Equivalence (ROPE)
+
+```{r}
+pi_stan_samples |> 
+  spread_draws(pi) |> 
+  summarize(prop_in_rope = sum(pi > 0.25 & pi < 0.35) / n(),
+            prop_outside_rope = 1 - prop_in_rope)
+```
+
+```{r}
+pi_stan_samples |> 
+  spread_draws(pi) |> 
+  ggplot() +
+  aes(x = pi) +
+  stat_slab(aes(fill_ramp = after_stat(level)),
+            .width = c(0.95, 1),
+            point_interval = "median_hdci",
+            fill = "#d65616") +
+  scale_fill_ramp_discrete(range = c(0.2, 1)) +
+  annotate(geom = "rect", xmin = 0.25, xmax = 0.35, 
+           ymin = -Inf, ymax = Inf, alpha = 0.3)+   geom_vline(xintercept = 0.3) +
+  xlim(c(0, 0.4)) +
+  theme(legend.position = "none")
+```
+
+Posterior prediction
+
+```{r}
+# brms way
+
+predicted_genx_after_20 <- model_pi_brms |> 
+  predicted_draws(newdata = tibble(artworks = 20)) |> 
+  ungroup() |> 
+  summarize(n = n(), .by = .prediction) |> 
+  mutate(prop = n / sum(n)) |> arrange(.prediction)
+
+predicted_genx_after_20
+```
+
+```{r}
+ggplot(predicted_genx_after_20) +
+  aes(x = factor(.prediction), y = prop) +
+  geom_col()
+```
+
+```{r}
+predicted_genx_after_20 |> 
+  filter(.prediction == 3) |> 
+  pull(prop)
+```
+
+Distribution of above
+
+```{r}
+model_pi_brms |> 
+  epred_draws(newdata = tibble(artworks = 20)) |> 
+  ungroup() |> 
+  ggplot() + 
+  aes(x = .epred) +
+  stat_halfeye()
+```
