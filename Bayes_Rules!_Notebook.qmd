@@ -546,3 +546,197 @@ model_pi_brms |>
   aes(x = .epred) +
   stat_halfeye()
 ```
+
+## Chapter 9: Simple Normal Regression
+
+```{r}
+library(bayesrules)
+library(tidyverse)
+library(brms)
+library(cmdstanr)
+library(rstanarm)
+library(broom.mixed)
+library(tidybayes)
+library(ggdist)
+library(patchwork)
+library(ggtext)
+
+set_theme(theme_bw(base_family = "Barlow", base_size = 16))
+
+data(bikes, package = "bayesrules")
+
+bikes <- bikes |> 
+  as_tibble() |> 
+  mutate(temp_feel_centered = scale(temp_feel, scale = FALSE),
+         temp_feel_c = as.numeric(temp_feel_centered))
+
+temp_details <- attributes(bikes$temp_feel_centered) %>%
+  set_names(janitor::make_clean_names(names(.)))
+```
+
+Our priors for our three parameters:
+
+```{r}
+p1 <- ggplot() +
+  geom_function(fun = ~dnorm(., 5000, 1000), linewidth = 1, color = "#002c55") +
+  xlim(c(1000, 9000)) +
+  labs(x = "**β<sub>0c </sub>**<br>Average Daily<br>Ridership") +
+  theme(axis.title.x = element_markdown())
+
+p2 <- ggplot() +
+  geom_function(fun = ~dnorm(., 100, 40), linewidth = 1, color = "#940034") +
+  xlim(c(-50, 250)) +
+  labs(x = "**β<sub>1 </sub>**<br>Temperature on<br>Ridership") +
+  theme(axis.title.x = element_markdown())
+
+p3 <- ggplot() +
+  geom_function(fun = ~dexp(., 1/1250), linewidth = 1, color = "#2db25f") +
+  xlim(c(0, 7000)) +
+  labs(x = "**β<sub>0c </sub>**<br>Variation in<br>Ridership") +
+  theme(axis.title.x = element_markdown())
+
+p1 + p2 + p3
+```
+
+Does our prior only model produce reasonable results?
+
+```{r}
+priors <- c(prior(normal(5000, 1000), class = Intercept),
+            prior(normal(100, 40), class = b, coef = "temp_feel_c"),
+            prior(exponential(0.0008), class = sigma)
+            )
+
+bike_prior_only <- brm(
+  bf(rides ~ temp_feel_c),
+  data = bikes,
+  family = gaussian(),
+  prior = priors,
+  sample_prior = "only",
+  backend = "cmdstanr", cores = 4, seed = 1234, refresh = 0
+)
+```
+
+```{r}
+draws_prior <- tibble(temp_feel_c = seq(45 - temp_details$scaled_center, 90 - temp_details$scaled_center, 1)) |> 
+  add_epred_draws(bike_prior_only, ndraws = 200) |> 
+  mutate(unscaled = temp_feel_c + temp_details$scaled_center)
+
+draws_prior |> 
+  ggplot() +
+  aes(x = unscaled, y = .epred) +
+  geom_line(aes(group = .draw), alpha = .2) +
+  labs(x = "Temperature", y = "Number of Rides")
+```
+
+Yes looks pretty good.
+
+```{r}
+# brms
+
+priors <- c(prior(normal(5000, 1000), class = Intercept),
+            prior(normal(100, 40), class = b, coef = "temp_feel_c"),
+            prior(exponential(0.0008), class = sigma))
+
+bike_brms <- brm(
+  bf(rides ~ temp_feel_c),
+  data = bikes,
+  family = gaussian(),
+  prior = priors,
+  chains = 4, iter = 5000*2, seed = 1234, backend = "cmdstanr", refresh = 0,
+  file = "09_manual_cache/bike-brms"
+)
+```
+
+```{r}
+bike_stan <- cmdstan_model("09_stan/bike_simple.stan")
+
+bike_stan_samples <- bike_stan$sample(
+  data = list(n = nrow(bikes), Y = bikes$rides, X = bikes$temp_feel_c),
+  parallel_chains = 4, iter_warmup = 5000, iter_sampling = 5000,
+  refresh = 0, seed = 1234, output_dir = "09_stan"
+)
+```
+
+```{r}
+neff_ratio(bike_brms)
+```
+
+```{r}
+rhat(bike_brms)
+```
+
+```{r}
+bike_brms |> 
+  gather_draws(b_Intercept, b_temp_feel_c, sigma) |> 
+  ggplot() +
+  aes(x = .iteration, y = .value, color = as.factor(.chain)) +
+  geom_line(linewidth = 0.05) +
+  labs(color = "Chain") +
+  facet_wrap(~.variable, scales = "free_y") +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+bike_brms |> 
+  gather_draws(b_Intercept, b_temp_feel_c, sigma) |> 
+  group_by(.variable) |> 
+  mutate(draw_rank = rank(.value)) |> 
+  ggplot() +
+  aes(x = draw_rank) +
+  stat_bin(aes(color = factor(.chain)), geom = "step", binwidth = 1000, 
+               position = position_identity(), boundary = 0) +
+  labs(color = "Chain") +
+  facet_wrap(~.variable) +
+  theme(legend.position = "bottom", axis.text.y = element_blank(), axis.title.y = element_blank(), axis.ticks.y = element_blank())
+```
+
+```{r}
+bike_brms |> 
+  gather_draws(b_Intercept, b_temp_feel_c, sigma) |> 
+  ggplot() +
+  aes(x = .value, color = factor(.chain)) +
+  geom_density() +
+  labs(color = "Chain") +
+  facet_wrap(~.variable, scales = "free") +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+tidy(bike_brms, conf.int = TRUE, conf.level = .8) |> 
+  select(-c(effect, component, group))
+```
+
+```{r}
+bike_brms |> 
+  gather_draws(b_Intercept, b_temp_feel_c, sigma) |> 
+  ggplot() +
+  aes(x = .value, fill = .variable) +
+  stat_halfeye(normalize = "xy") +
+  scale_fill_manual(values = c("firebrick3", "grey50", "blue4"), guide = "none") +
+  facet_wrap(~.variable, scales = "free_x") +
+  labs(x = "Parameter Posterior")
+```
+
+```{r}
+bikes |> 
+  add_linpred_draws(bike_brms, ndraws = 100) |> 
+  ggplot() +
+  aes(x = temp_feel, y = rides) +
+  geom_point(data = bikes, size = 0.5) +
+  geom_line(aes(y = .linpred, group = .draw), 
+            alpha = .2, linewidth = .5, color = "navy") +
+  labs(x = "Temp", y = "Rides")
+```
+
+Is beta_1 greater than 1?
+
+```{r}
+bike_brms |> 
+  spread_draws(b_temp_feel_c) |> 
+  count(b_temp_feel_c > 1) |> 
+  mutate(prob = n / sum(n))
+```
+
+```{r}
+
+```

@@ -2,3 +2,5 @@
 .Rhistory
 .RData
 .Ruserdata
+/09_manual_cache
+*.csv
