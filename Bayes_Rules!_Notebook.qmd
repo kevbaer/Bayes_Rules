@@ -816,3 +816,113 @@ phases_preds <- bike_phase_preds |>
 
 wrap_plots(phases_preds$pred_plot)
 ```
+
+## Chapter 10: Evaluating Regression Models
+
+```{r}
+ggplot(bikes) +
+  aes(x = temp_feel, y = rides) +
+  geom_point(size = 1) +
+  geom_smooth(method = "lm", se = FALSE, formula = "y ~ x")
+```
+
+```{r}
+bike_brms |> 
+  spread_draws(b_Intercept, b_temp_feel_c, sigma) |> 
+  select(starts_with("b_"), sigma)
+```
+
+```{r}
+first_draw <- bike_brms |> 
+  spread_draws(b_Intercept, b_temp_feel_c, sigma) |> 
+  slice(1)
+
+one_rep <- bikes |> 
+  mutate(mu = first_draw$b_Intercept + (first_draw$b_temp_feel_c * temp_feel_c),
+         y_rep = rnorm(500, mu, first_draw$sigma))
+
+one_rep |> 
+  select(temp_feel, temp_feel_c, rides, y_rep)
+```
+
+```{r}
+ggplot(one_rep) +
+  aes(x = y_rep) +
+  geom_density(color = "#fb7185", linewidth = 2) +
+  geom_density(aes(x = rides), color = "#940034", linewidth = 2)
+```
+
+```{r}
+lotsa_draws <- bike_brms |> 
+  spread_draws(b_Intercept, b_temp_feel_c, sigma) |> 
+  slice_sample(n = 25) |> 
+  mutate(id = 1:n())
+
+lotsa_reps <- lotsa_draws |> 
+  mutate(mu = map2(b_Intercept, b_temp_feel_c, ~.x + .y * bikes$temp_feel_c),
+         y_rep = map2(mu, sigma, ~rnorm(500, .x, .y))) |>
+  unnest(y_rep)
+
+ggplot(lotsa_reps) +
+  aes(x = y_rep) +
+  geom_density(aes(group = id), color = "#fecdd4", linewidth = 1) +
+  geom_density(data = bikes, aes(x = rides), color = "#940034", linewidth = 2)
+```
+
+```{r}
+pp_check(bike_brms, ndraws = 25)
+```
+
+```{r}
+bike_brms |> 
+  add_predicted_draws(newdata = bikes, ndraws = 100) |> 
+  ggplot() +
+  aes(x = temp_feel) +
+  stat_interval(aes(y = .prediction, color_ramp = after_stat(level)), alpha = .25,
+                .width = c(0.5, 0.9), color = "#940034") +
+  scale_color_ramp_discrete(range = c(.5, 1)) +
+  geom_point(aes(y = rides), size = 2.5, pch = 21, color = "white", fill = "black")
+```
+
+```{r}
+kfold_brms <- bikes |> 
+  modelr::crossv_kfold(k = 10) |> 
+  mutate(model = map(train, ~{
+    brm(
+      bf(rides ~ temp_feel_c),
+      data = .,
+      family = gaussian(),
+      prior = priors,
+      chains = 4, iter = 5000 * 2, seed = 1234, backend = "cmdstanr", refresh = 0
+    )
+  }))
+```
+
+```{r}
+mae_kfold_brms <- kfold_brms |> 
+  mutate(predictions = map2(test, model, ~{
+    .x |> 
+      as_tibble() |> 
+      add_predicted_draws(.y) |> 
+      ungroup()
+  })) |> 
+  mutate(mae = map(predictions, ~{
+    .x |> 
+      mutate(error = rides - .prediction) |> 
+      summarize(
+        mae = median(abs(error)),
+        mae_scaled = median(abs(error / sd(.prediction)))
+      )
+  }))
+```
+
+```{r}
+mae_kfold_brms |> 
+  select(mae) |> 
+  unnest(mae) |> 
+  summarize(across(everything(), mean))
+```
+
+```{r}
+loo(bike_brms)
+```
