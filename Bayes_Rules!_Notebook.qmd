@@ -738,5 +738,81 @@ bike_brms |>
 ```
 
 ```{r}
+p1 <- bike_brms |> 
+  linpred_draws(newdata = tibble(temp_feel_c = (75 - temp_details$scaled_center))) |> 
+  ggplot() +
+  aes(x = .linpred) +
+  stat_halfeye(fill = "#0188ac") +
+  labs(title = "Predicted Average Riders\non all days with 75˚",
+       x = "Predicted Riders", y = NULL)
 
+p2 <- bike_brms |> 
+  predicted_draws(newdata = tibble(temp_feel_c = (75 - temp_details$scaled_center))) |> 
+  ggplot() +
+  aes(x = .prediction) +
+  stat_halfeye(fill = "#b3114b") +
+  labs(title = "Predicted Riders on a\nspecific day with 75˚",
+       x = "Predicted Riders", y = NULL)
+
+p1|p2
+```
+
+```{r}
+priors <- c(prior(normal(5000, 1000), class = Intercept),
+            prior(normal(100, 40), class = b, coef = "temp_feel_c"),
+            prior(exponential(0.0008), class = sigma))
+
+bike_phases <- tribble(
+  ~phase, ~data,
+  1, slice(bikes, 1:30),
+  2, slice(bikes, 1:60),
+  3, bikes
+) |> 
+  mutate(model = map(data, ~{
+    brm(
+      bf(rides ~ temp_feel_c),
+      data = .,
+      family = gaussian(),
+      prior = priors,
+      chains = 4, iter = 5000*2, seed = 1234,
+      backend = "cmdstanr", refresh = 0
+    )
+  }))
+```
+
+```{r}
+bike_phases_draw <- bike_phases |> 
+  mutate(draws = map(model, ~spread_draws(., b_temp_feel_c)))
+
+phases_coefs <- bike_phases_draw |> 
+  mutate(coef_plot = map2(draws, phase, ~{
+    ggplot(.x) +
+      aes(x = b_temp_feel_c) +
+      stat_halfeye(fill = "#b3114b") +
+      coord_cartesian(xlim = c(-10, 100)) +
+      labs(title = paste("Phase", .y))
+  }))
+
+wrap_plots(phases_coefs$coef_plot)
+```
+
+```{r}
+bike_phase_preds <- bike_phases |> 
+  mutate(preds = map2(data, model, ~{
+    .x |> 
+      add_linpred_draws(.y, ndraws = 50) |> 
+      ungroup()
+  }))
+
+phases_preds <- bike_phase_preds |> 
+  mutate(pred_plot = pmap(list(data, preds, phase), ~{
+    ggplot(..2, aes(x = temp_feel, y = rides)) +
+      geom_point(data = ..1, size = 0.5) +
+      geom_line(aes(y = .linpred, group = .draw), 
+                alpha = 0.2, size = 0.5, color = "navy") +
+      labs(title = paste("Phase", ..3)) +
+      coord_cartesian(xlim = c(40, 90), ylim = c(0, 7000))
+  }))
+
+wrap_plots(phases_preds$pred_plot)
 ```
