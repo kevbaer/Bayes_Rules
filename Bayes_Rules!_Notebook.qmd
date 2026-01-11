@@ -926,3 +926,317 @@ mae_kfold_brms |>
 ```{r}
 loo(bike_brms)
 ```
+
+## Chapter 11: Extending The Normal Regression Model
+
+```{r}
+library(bayesrules)
+library(tidyverse)
+library(brms)
+library(cmdstanr)
+library(broom.mixed)
+library(tidybayes)
+library(ggdist)
+library(patchwork)
+
+set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
+
+data(weather_WU, package = "bayesrules")
+
+weather_WU <- weather_WU |> 
+  select(location, windspeed9am, humidity9am, pressure9am, temp9am, temp3pm) |> 
+  mutate(
+    across(c(temp9am, humidity9am, temp3pm, pressure9am, windspeed9am),
+           ~scale(., scale = FALSE), .names = "{col}_centered")
+  ) |> 
+  mutate(
+    across(c(temp9am, humidity9am, temp3pm, pressure9am, windspeed9am),
+           ~as.numeric(scale(., scale = FALSE)), .names = "{col}_c")
+  )
+
+extract_attributes <- function(x){
+  attributes(x) %>%
+    set_names(janitor::make_clean_names(names(.))) %>%
+    as_tibble() %>%
+    slice(1)
+}
+
+unscaled <- weather_WU |> 
+  select(ends_with("_centered")) |> 
+  summarize(across(everything(), ~extract_attributes(.))) |> 
+  pivot_longer(everything()) |> 
+  unnest(value) |> 
+  split(~name)
+```
+
+```{r}
+ggplot(weather_WU) +
+  aes(x = temp9am, y = temp3pm) +
+  geom_point()
+```
+
+```{r}
+priors <- c(prior(normal(25, 5), class = Intercept),
+            prior(normal(0, 2.5), class = b, coef = "temp9am"),
+            prior(exponential(1), class = sigma)
+            )
+
+weather_simple_brms <- brm(
+  bf(temp3pm ~temp9am),
+  data = weather_WU,
+  family = gaussian(), 
+  prior = priors,
+  chains = 4, iter = 5000*2, seed = 1234, backend = "cmdstanr", refresh = 0
+)
+```
+
+```{r}
+pp_check(weather_simple_brms, ndraws = 25) + 
+  theme(legend.position = "inside", legend.position.inside = c(.9, .8))
+```
+
+```{r}
+ggplot(weather_WU) +
+  aes(x = temp3pm, fill = location) +
+  geom_density(color = NA) +
+  paletteer::scale_fill_paletteer_d("wesanderson::GrandBudapest1") +
+  labs(x = "3 PM temperature", fill = NULL) +
+  theme(legend.position = "inside", legend.position.inside = c(.8, .85))
+```
+
+```{r}
+ggplot(weather_WU) +
+  aes(x = temp9am, y = temp3pm, color = location) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, formula = "y ~ x") + 
+  paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1") +
+labs(x = "9 AM temperature", y = "3 PM temperature", color = NULL) +
+  theme(legend.position = "inside", legend.position.inside = c(.15, .85))
+```
+
+Simulation of our priors
+
+```{r}
+priors <- c(
+  prior(normal(25, 5), class = Intercept),
+  prior(normal(0, 2.5), class = b, coef = "temp9am_c"),
+  prior(normal(0, 10), class = b, coef = "locationWollongong"),
+  prior(exponential(1), class = sigma)
+)
+
+weather_location_prior_brms <- brm(
+  bf(temp3pm ~ temp9am_c + location),
+  data = weather_WU,
+  family = gaussian(), 
+  prior = priors,
+  chains = 4, iter = 5000*2, seed = 1234,
+  backend = "cmdstanr", refresh = 0, sample_prior = "only"
+)
+
+p1 <- weather_WU |> 
+  add_predicted_draws(weather_location_prior_brms, ndraws = 100) |> 
+  ggplot() +
+  aes(x = .prediction, group = .draw) +
+  geom_density(linewidth = 0.25, color = "hotpink2")
+
+p2 <- weather_WU |> 
+  add_epred_draws(weather_location_prior_brms, ndraws = 100) |> 
+  ggplot(aes(x = temp9am, y = .epred)) +
+  geom_line(aes(group = paste(location, .draw), color = location), alpha = 0.2) +
+  scale_color_manual(values = c("lightblue3", "firebrick3")) +
+  labs(x = "9 AM temperature", y = "3 PM temperature", color = NULL) +
+  theme(legend.position = "bottom")
+
+p1 | p2
+```
+
+```{r}
+priors <- c(
+  prior(normal(25, 5), class = Intercept),
+  prior(normal(0, 2.5), class = b, coef = "temp9am_c"),
+  prior(normal(0, 10), class = b, coef = "locationWollongong"),
+  prior(exponential(1), class = sigma)
+)
+
+weather_location_brms <- brm(
+  bf(temp3pm ~ temp9am_c + location),
+  data = weather_WU,
+  family = gaussian(), 
+  prior = priors,
+  chains = 4, iter = 5000*2, seed = 1234,
+  backend = "cmdstanr", refresh = 0
+)
+```
+
+```{r}
+tidy(weather_location_brms, conf.int = TRUE, conf.level = 0.8) |> 
+  select(-c(component, effect, group))
+```
+
+```{r}
+weather_WU |> 
+  add_linpred_draws(weather_location_brms, ndraws = 100) |> 
+  ggplot() +
+  aes(x = temp9am, y = temp3pm, color = location) +
+  geom_point(size = .5) +
+  geom_line(aes(y = .linpred, group = paste(location, .draw)), 
+            alpha = .2, linewidth = .5) + 
+  paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1") +
+  labs(x = "9 AM temperature", y = "3 PM temperature", color = NULL) +
+  theme(legend.position = "inside", legend.position.inside = c(.15, .85))
+```
+
+```{r}
+pp_check(weather_location_brms, ndraws = 25) +
+  theme(legend.position = "inside", legend.position.inside = c(.85, .85))
+```
+
+```{r}
+weather_location_brms |> 
+  predicted_draws(newdata = expand_grid(temp9am_c = 10 - unscaled$temp9am_centered$scaled_center, location = c("Wollongong", "Uluru"))) |> 
+  ggplot() +
+  aes(x = .prediction, y = location, fill = location) +
+  stat_halfeye() +
+  paletteer::scale_fill_paletteer_d("wesanderson::GrandBudapest1", guide = "none") +
+  labs(x = "Predicted 3 PM temperature", y = NULL)
+```
+
+```{r}
+priors <- c(prior(normal(25, 5), class = Intercept),
+            prior(normal(0, 2.5), class = b),
+            prior(exponential(1), class = sigma))
+
+weather_full_brms <- brm(
+  bf(temp3pm ~ temp9am_c + humidity9am_c + windspeed9am_c + pressure9am_c + location),
+    data = weather_WU,
+  family = gaussian(),
+  prior = priors,
+  chains = 4, iter = 5000*2, seed = 1234, 
+  backend = "cmdstanr", refresh = 0
+)
+```
+
+```{r}
+pp_check(weather_full_brms, ndraws = 25) +
+    theme(legend.position = "inside", legend.position.inside = c(.9, .8))
+```
+
+```{r}
+tidy(weather_full_brms, conf.int = TRUE, conf.level = 0.8) |> 
+  select(-c(effect, component, group))
+```
+
+```{r}
+models_brms <- tribble(
+  ~model_name, ~model,
+  "Temperature only", weather_simple_brms, 
+  "Temperature + location", weather_location_brms, 
+  "Full model", weather_full_brms
+) |> 
+  mutate(ppcheck = map2(model, model_name, ~pp_check(.x, ndraws = 25) + labs(title = .y) + theme(legend.position = "inside", legend.position.inside = c(.85, .85)))) |> 
+  mutate(loo = map(model, ~loo(.)))
+```
+
+```{r}
+wrap_plots(models_brms$ppcheck)
+```
+
+```{r}
+loo_brms <- models_brms |> 
+  mutate(loo_stuff = map(loo, ~as_tibble(.$estimates, rownames = "statistic"))) |> 
+  select(model_name, loo_stuff) |> 
+  unnest(loo_stuff) |> 
+  filter(statistic == "elpd_loo") |> 
+  arrange(desc(Estimate))
+
+loo_brms
+```
+
+```{r}
+loo_brms |> 
+  mutate(model_name = fct_rev(fct_inorder(model_name))) |> 
+  ggplot() +
+  aes(x = Estimate, y = model_name) +
+  geom_pointrange(aes(xmin = Estimate - 2* SE, xmax = Estimate + 2 * SE))
+```
+
+```{r}
+models_brms |> 
+  pull(loo) |> 
+  set_names(models_brms$model_name) |> 
+  loo_compare()
+```
+
+```{r}
+
+
+cv_weather_WU <- modelr::crossv_kfold(weather_WU, k = 10) |> 
+  mutate(
+    model1 = map(train, ~weather_simple_brms),
+    model2 = map(train, ~weather_location_brms),
+    model3 = map(train, ~weather_full_brms)
+  ) |> 
+    mutate(predictions1 = map2(test, model1, ~{
+    .x |> 
+      as_tibble() |> 
+      add_predicted_draws(.y) |> 
+      ungroup()
+  })) |> 
+  mutate(predictions2 = map2(test, model2, ~{
+    .x |> 
+      as_tibble() |> 
+      add_predicted_draws(.y) |> 
+      ungroup()
+  })) |> 
+  mutate(predictions3 = map2(test, model3, ~{
+    .x |> 
+      as_tibble() |> 
+      add_predicted_draws(.y) |> 
+      ungroup()
+  })) |> 
+  mutate(mae1 = map(predictions1, ~{
+    .x |> 
+      mutate(error = temp3pm - .prediction) |> 
+      summarize(mae = median(abs(error)),
+                mae_scaled = median(abs(error / sd(.prediction))))
+  })) |> 
+   mutate(mae2 = map(predictions2, ~{
+    .x |> 
+      mutate(error = temp3pm - .prediction) |> 
+      summarize(mae = median(abs(error)),
+                mae_scaled = median(abs(error / sd(.prediction))))
+  })) |> 
+   mutate(mae3 = map(predictions3, ~{
+    .x |> 
+      mutate(error = temp3pm - .prediction) |> 
+      summarize(mae = median(abs(error)),
+                mae_scaled = median(abs(error / sd(.prediction))))
+  }))
+```
+
+```{r}
+res <- cv_weather_WU |> 
+  select(starts_with("mae")) |> 
+  unnest(starts_with("mae"), names_sep = "x") |> 
+  summarize(across(everything(), mean))
+
+res
+```
+
+```{r}
+res |> 
+  select(ends_with("mae")) |> 
+  pivot_longer(everything()) |> 
+  ggplot() +
+  aes(x = value, y = name, fill = name) +
+  geom_col() +
+  paletteer::scale_fill_paletteer_d("wesanderson::GrandBudapest1", 
+                                    guide = "none", direction = 1) +
+  scale_y_discrete(labels = rev(c("Full", "Location + Temp", "Just Temp"))) +
+  labs(y = NULL, x = "MAE (lower is better)") +
+  scale_x_continuous(
+    expand = expansion(mult = c(0.01, 0.06))
+  )
+```
+
+So across our cross validation and elpd, we can see that the temperature + location is performing quite well.
