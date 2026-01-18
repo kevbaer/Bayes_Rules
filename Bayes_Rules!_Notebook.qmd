@@ -1240,3 +1240,211 @@ res |>
 ```
 
 So across our cross validation and elpd, we can see that the temperature + location is performing quite well.
+
+## Chapter 12: Poisson & Negative Binomial Regression
+
+```{r}
+library(bayesrules)
+library(tidyverse)
+library(brms)
+library(cmdstanr)
+library(marginaleffects)
+library(broom)
+library(broom.mixed)
+library(tidybayes)
+library(ggdist)
+library(patchwork)
+library(ggh4x)
+library(geomtextpath)
+library(ggrepel)
+library(extraDistr)
+
+set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
+data(equality_index, package = "bayesrules")
+
+equality <- equality_index |> 
+  filter(state != "california")
+```
+
+```{r}
+ggplot(equality) +
+  aes(x = percent_urban, y = laws) +
+  geom_point(aes(fill = historical), pch = 21, size = 4, color = "white") +
+  geom_smooth(aes(color = "Poisson Regression"), se = FALSE, method = "glm",
+              formula = "y ~ x", method.args = list(family = "poisson")) +
+  geom_smooth(aes(color = "Linear Regression"), se = FALSE, method = "lm", 
+                  formula = "y ~ x") +
+  scale_fill_manual(values = c( "mediumblue","red2", "mediumpurple2")) +
+  paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1") +
+  labs(x = "Percent Urban", y = "Number of LGBTQ+ Laws", color = NULL, fill = "Party") +
+  theme(legend.position = "bottom")
+  
+```
+
+```{r}
+priors <- c(prior(normal(2, 0.5), class = Intercept),
+            prior(student_t(2, 0, 1), class = b, coef = "percent_urban"),
+            prior(student_t(2, -0.5, 2), class = b, coef = "historicalgop"),
+            prior(student_t(2, 0, 2), class = b, coef = "historicalswing")
+            )
+
+model_equality_prior_brms <- brm(
+  bf(laws ~ percent_urban + historical),
+  data = equality, 
+  family = poisson(),
+  prior = priors,
+  sample_prior = "only",
+  chains = 4, iter = 4000, seed = 1234, backend = "cmdstanr", refresh = 0
+)
+```
+
+```{r}
+prior_draws_brms <- equality |> 
+  group_by(historical) |> 
+  summarize(min = min(percent_urban),
+            max = max(percent_urban)) |> 
+  mutate(percent_urban = map2(min, max, ~seq(.x, .y, 1))) |> 
+  unnest(percent_urban) |> 
+  add_epred_draws(model_equality_prior_brms, ndraws = 100)
+
+prior_draws_brms |> 
+  ggplot() +
+  aes(x = percent_urban, y = .epred) +
+  geom_line(aes(group = paste(historical, .draw), color = historical), 
+            alpha = .1, linewidth = 0.5) +
+  coord_cartesian(ylim = c(0, 100)) +
+  scale_color_manual(values = c( "mediumblue","red2", "mediumpurple2")) +
+  labs(x = "Percent urban", y = "Predicted number of laws", color = "Party") +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+priors <- c(prior(normal(2, 0.5), class = Intercept),
+            prior(student_t(2, 0, 1), class = b, coef = "percent_urban"),
+            prior(student_t(2, -0.5, 2), class = b, coef = "historicalgop"),
+            prior(student_t(2, 0, 2), class = b, coef = "historicalswing"))
+
+model_equality_brms <- brm(
+  bf(laws ~ percent_urban + historical),
+  data = equality,
+  family = poisson(),
+  prior = priors,
+  chains = 4, iter = 4000, seed = 1234, 
+  backend = "cmdstanr", refresh = 0
+)
+```
+
+Diagnostics:
+
+```{r}
+model_equality_brms |> 
+  gather_draws(`^b_.*`, regex = TRUE) |> 
+  ggplot() +
+  aes(x = .iteration, y = .value, color = factor(.chain)) +
+  geom_line(linewidth = 0.1) +
+  paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1")+
+  facet_wrap(~.variable, scales = "free_y")
+```
+
+We like that it's fuzzy
+
+```{r}
+model_equality_brms |> 
+  gather_draws(`^b_.*`, regex = TRUE) |> 
+  group_by(.variable) |> 
+  mutate(draw_rank = rank(.value)) |> 
+  ggplot() +
+  aes(x = draw_rank, color = factor(.chain)) +
+  stat_bin(geom = "step", binwidth = 250, position = position_identity(), boundary = 0) +
+  paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1") +
+  facet_wrap(~.variable, scales = "free_y") +
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), 
+        axis.title.y = element_blank())
+```
+
+Nice and random.
+
+```{r}
+pp_check(model_equality_brms, ndraws = 50) +
+  theme(legend.position = "inside", legend.position.inside = c(.9, .8)) 
+```
+
+```{r}
+loo(model_equality_brms)
+```
+
+```{r}
+model_equality_brms <- add_criterion(model_equality_brms, criterion = c("loo", "waic"))
+
+brms_diagnostics <- tibble(
+  psis = model_equality_brms$criteria$loo$diagnostics$pareto_k,
+  p_waic = model_equality_brms$criteria$waic$pointwise[ , "p_waic"],
+  state = pull(equality, state) 
+) |> 
+  mutate(highlight = (psis > .5 | p_waic > 1))
+
+ggplot(brms_diagnostics) + 
+  aes(x = psis, y = p_waic) +
+  geom_point(aes(color = highlight)) +
+  geom_text_repel(data = filter(brms_diagnostics, highlight), 
+                  aes(label = state), seed = 1234, direction = "y") +
+  geom_vline(xintercept = .5, linetype = "dashed") +
+  paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1", guide = "none") +
+  labs(x = "PSIS Pareto k", y = "WAIC penalty")
+```
+
+```{r}
+equality |> 
+  add_epred_draws(model_equality_brms, ndraws = 50) |> 
+  ggplot() +
+  aes(x = percent_urban, y = laws, color = historical) +
+  geom_point(data = equality, size = 1) +
+  geom_line(aes(y = .epred, group = paste(historical, .draw)),
+            linewidth = .5, alpha = .3) +
+  scale_color_manual(values = c( "mediumblue","red2", "mediumpurple2")) +
+  labs(x = "Percent Urban", y = "Number of Laws", color = "Party") +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+plot_slopes(model_equality_brms, 
+         variables = "percent_urban",
+         condition = c("percent_urban", "historical")) +
+  scale_color_manual(values = c( "mediumblue","red2", "mediumpurple2")) +
+  scale_fill_manual(values = c( "mediumblue","red2", "mediumpurple2")) +
+  labs(color = NULL, fill = NULL, x = "Percent urban",
+       y = "Marginal effect \nNumber of Laws") +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+data(pulse_of_the_nation, package = "bayesrules")
+
+pulse <- pulse_of_the_nation |> 
+  filter(books < 100)
+```
+
+```{r}
+model_pulse_negbinom <- brm(
+  bf(books ~ age + wise_unwise),
+  data = pulse,
+  family = negbinomial(),
+  chains = 4, iter = 4000, seed = 1234, backend = "cmdstanr", refresh = 0
+)
+```
+
+```{r}
+pp_check(model_pulse_negbinom, ndraws = 50) +
+  theme(legend.position = "inside", legend.position.inside = c(.9, .8)) 
+```
+
+```{r}
+slopes(model_pulse_negbinom, type = "response") |> 
+  get_draws() |> 
+  filter(contrast != "dY/dX") |> 
+  ggplot() +
+  aes(x = draw) +
+  stat_halfeye(fill = paletteer::paletteer_d("wesanderson::GrandBudapest1")[2]) 
+```
+
+On average about 2.6 books more amongst Wise than happy.
