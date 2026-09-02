@@ -2,6 +2,9 @@
 title: "Bayes_Rules!_Notebook"
 format: html
 editor: visual
+knitr:
+  opts_chunk:
+    dev: ragg_png
 ---
 
 ## Chapter 2: Bayes' Rule
@@ -251,7 +254,7 @@ bb_sim_samples |>
 bb_sim_samples |>
   gather_draws(pi) |> 
   ggplot(aes(x = .iteration, y = .value, color = as.factor(.chain))) +
-  geom_line(size = 0.1) +
+  geom_line(linewidth = 0.1) +
   labs(color = "Chain")
 ```
 
@@ -1448,3 +1451,269 @@ slopes(model_pulse_negbinom, type = "response") |>
 ```
 
 On average about 2.6 books more amongst Wise than happy.
+
+## Chapter 13: Logistic Regression
+
+```{r}
+library(bayesrules)
+library(tidyverse)
+library(brms)
+library(cmdstanr)
+library(tidybayes)
+library(patchwork)
+
+set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
+```
+
+```{r}
+data(weather_perth, package = "bayesrules")
+```
+
+```{r}
+weather <- weather_perth |> 
+  select(day_of_year, raintomorrow, humidity9am, humidity3pm, raintoday)
+```
+
+Simulate from priors to see if reasonable
+
+```{r}
+priors <- c(prior(normal(-1.39, 0.7), class = Intercept),
+            prior(normal(0.07, 0.035), class = b, coef = "humidity9am"))
+
+model_weather_prior_brms <- brm(
+  bf(raintomorrow ~ humidity9am),
+  data = weather,
+  family = bernoulli(link = "logit"),
+  prior = priors,
+  sample_prior = "only",
+  chains = 4, iter = 4000, seed = 1234, backend = "cmdstanr", refresh = 0
+)
+```
+
+```{r}
+p1 <- tibble(humidity9am = seq(0, 100, by = .1)) |> 
+  add_epred_draws(model_weather_prior_brms, ndraws = 100) |> 
+  ggplot() +
+  aes(x = humidity9am, y = .epred) +
+  geom_line(aes(group = .draw), alpha = 0.5, linewidth = 0.5, 
+            color = "#d65616") +
+  labs(x = "9am Humidity", y = "Probability of Rain Tomorrow")
+
+p2 <- tibble(humidity9am = seq(0, 100, by = .1)) |> 
+  add_predicted_draws(model_weather_prior_brms, ndraws = 100) |> 
+  ungroup() |> 
+  summarize(proportion_rain = mean(.prediction == 1), .by = .draw) |> 
+  ggplot() +
+  aes(x = proportion_rain) +
+  geom_histogram(binwidth = 0.02, color = "white", fill = "#0188ac") +
+  labs(x = "Proportion of rainy days in each draw", y = "Count") +
+  scale_y_continuous(breaks = c(0, 5, 10, 15))
+
+p1 | p2
+```
+
+```{r}
+rain_prob <- weather |> 
+  mutate(humidity_bracket = cut(humidity9am, seq(10, 100, by = 10))) |> 
+  summarize(prop_rain = mean(raintomorrow == "Yes"), 
+            .by = humidity_bracket) |>
+  arrange(humidity_bracket) |> 
+  mutate(mid = seq(15, 95, by = 10))
+
+weather |> 
+  ggplot() + 
+  aes(x = humidity9am / 100, y = (raintomorrow == "Yes") |> as.numeric()) +
+  geom_dots(aes(color = raintomorrow, shape = "Data",
+                side = if_else(raintomorrow == "Yes", "bottom", "top")),
+                scale = 0.7, alpha = 0.5) +
+  scale_color_manual(values = c("#fb7185", "#2db25f"), 
+                     name = "Rain Tomorrow", 
+                     guide = guide_legend(override.aes = list(shape = 19))) +
+  scale_shape_manual(values = c(19, 15), name = NULL, 
+                     guide = guide_legend(override.aes = list(linetype = 0)))+
+  geom_point(data = rain_prob, aes(x = mid / 100, y = prop_rain, 
+                                   shape = "Proportion of Rainy Days")) +
+  ggnewscale::new_scale_color() +
+  geom_smooth(mapping = aes(color = "Probability of Rain"),
+              method = "glm", 
+              method.args = list(family = binomial(link = "logit")),
+              linewidth = 1, se = FALSE, formula = "y~x") +
+  scale_color_manual(values = "#002c55", name = NULL) +
+  scale_x_continuous(labels = scales::label_percent()) +
+  scale_y_continuous(labels = scales::label_percent()) +
+  labs(x = "9am Humidity", y = "Probability of Rain Tomorrow")
+```
+
+```{r}
+model_weather_brms <- brm(
+  bf(raintomorrow ~ humidity9am),
+  data = weather,
+  family = bernoulli(link = "logit"),
+  prior = priors,
+  chains = 4, iter = 4000, seed = 1234, backend = "cmdstanr", refresh = 0
+)
+```
+
+Diagnostics
+
+```{r}
+model_weather_brms |> 
+  gather_draws(`^b_.*`, regex = TRUE) |> 
+  ggplot() +
+  aes(x = .iteration, y = .value, color = factor(.chain)) +
+  geom_line(linewidth = 0.1) +
+  paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1") +
+  facet_wrap(~.variable, scales = "free_y")
+```
+
+```{r}
+model_weather_brms |> 
+  gather_draws(`^b_.*`, regex = TRUE) |> 
+  group_by(.variable) |> 
+  mutate(draw_rank = rank(.value)) |> 
+  ggplot() +
+  aes(x = draw_rank, color = factor(.chain)) +
+  stat_bin(geom = "step", binwidth = 250, position = position_identity(),
+           boundary = 0) +
+  paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1") +
+  facet_wrap(~.variable, scales = "free_y") +
+  theme(axis.text.y = element_blank(), axis.title.y = element_blank(), 
+        axis.ticks.y = element_blank())
+```
+
+```{r}
+pp_check(model_weather_brms, ndraws = 50) +
+  theme(legend.position = "inside", legend.position.inside = c(.9, .8))
+```
+
+```{r}
+loo(model_weather_brms)
+```
+
+```{r}
+prediction_brms <- model_weather_brms |> 
+  predicted_draws(newdata = tibble(humidity9am = 99))
+
+prediction_brms |> 
+  count(.prediction) |> 
+  mutate(prop = n / sum(n), 
+         prop_nice = scales::percent(prop, accuracy = .1)) |> 
+  ggplot() +
+  aes(x = factor(.prediction), y = n) +
+  geom_col(aes(fill = factor(.prediction))) +
+  geom_label(aes(label = prop_nice), nudge_y = -500) +
+  scale_fill_manual(values = c("#5c4cbf", "#8ee7af"), guide = "none")
+```
+
+```{r}
+pp_check(model_weather_brms, ndraws = 100, type = "bars")
+```
+
+```{r}
+pp_check(model_weather_brms, ndraws = 100, type = "stat", bins = 30) +
+  labs(x = "Probability of Rain")
+```
+
+```{r}
+prediction_brms_all <- weather |> 
+  add_predicted_draws(model_weather_brms)
+
+rain_classifications <- prediction_brms_all |> 
+  group_by(.row) |> 
+  summarize(rain_prob_that_day = mean(.prediction),
+            raintomorrow_actual = raintomorrow[1]) |> 
+  mutate(raintomorrow_pred = rain_prob_that_day >= .5)
+```
+
+```{r}
+rain_classifications |> 
+  janitor::tabyl(raintomorrow_actual, raintomorrow_pred) |> 
+  janitor::adorn_totals(c("row", "col"))
+```
+
+```{r}
+priors <- c(prior(normal(-1.39, 0.7), class = Intercept),
+            prior(normal(0, 0.14), class = b, coef = "humidity9am"),
+            prior(normal(0, 0.15), class = b, coef = "humidity3pm"),
+            prior(normal(0, 6.45), class = b, coef = "raintodayYes")
+            )
+
+model_weather_full_brms <- brm(
+  bf(raintomorrow ~ humidity9am + humidity3pm + raintoday),
+  data = weather, family = bernoulli(link = "logit"),
+  prior = priors, chains = 4, iter = 4000, seed = 1234, backend = "cmdstanr",
+  refresh = 0
+)
+```
+
+```{r}
+expand_grid(humidity9am = mean(weather$humidity9am),
+            humidity3pm = seq(min(weather$humidity3pm), 
+                              max(weather$humidity3pm), length.out = 100),
+            raintoday = c("No", "Yes")) |> 
+  add_epred_draws(model_weather_full_brms) |> 
+  ggplot() +
+  aes(x = humidity3pm, y = .epred, color = raintoday) +
+  geom_dots(data = weather, aes(
+    y = (raintomorrow == "Yes") |> as.numeric(),
+    side = if_else(raintomorrow == "Yes", "bottom", "top")),
+    pch = 19, color = "grey70", scale = 0.65, alpha = 0.75) +
+  stat_lineribbon(aes(fill = raintoday), alpha = 0.35) +
+  scale_color_manual(values = c("#fb7185", "#2db25f")) +
+  scale_fill_manual(values = c("#fb7185", "#2db25f")) +
+  labs(x = "3pm Humidity", y = "Posterior Probability of Rain",
+       color = "Rain Today", fill = "Rain Today") +
+  scale_y_continuous(labels = scales::label_percent()) +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+prediction_full <- model_weather_full_brms |> 
+  predicted_draws(newdata = expand_grid(
+    humidity9am = mean(weather$humidity9am),
+    humidity3pm = 99,
+    raintoday = c("No", "Yes")
+  ))
+
+prediction_full |> 
+  count(.prediction, raintoday) |> 
+  mutate(prop = n / sum(n), prop_nice = 
+           scales::percent(prop, accuracy = 0.1)) |> 
+  ggplot() +
+  aes(x = factor(.prediction), y = n) +
+  geom_col(aes(fill = factor(.prediction))) +
+  geom_label(aes(label = prop_nice), nudge_y = -500) +
+  scale_fill_manual(values = c("#b3114b", "#ffc517"), guide = "none") +
+  facet_wrap(~raintoday)
+```
+
+```{r}
+pp_check(model_weather_full_brms, ndraws = 100, type = "bars")
+```
+
+```{r}
+pp_check(model_weather_full_brms, ndraws = 500, type = "stat", bins = 30) + 
+  labs(x = "Probability of Rain")
+```
+
+```{r}
+prediction_brms_full_all <- weather |> 
+  add_predicted_draws(model_weather_full_brms)
+
+rain_classifications_full <- prediction_brms_full_all |> 
+  group_by(.row) |> 
+  summarize(rain_prob_that_day = mean(.prediction),
+            raintomorrow_actual = raintomorrow[1]) |> 
+  mutate(raintomorrow_pred = rain_prob_that_day >= .5)
+
+rain_classifications_full |> 
+  janitor::tabyl(raintomorrow_actual, raintomorrow_pred) |> 
+  janitor::adorn_totals(c("row", "col"))
+```
+
+```{r}
+loo_compare(
+  loo(model_weather_brms),
+  loo(model_weather_full_brms)
+)
+```
