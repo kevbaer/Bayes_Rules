@@ -1,5 +1,5 @@
 ---
-title: "Bayes_Rules!_Notebook"
+title: "Bayes_Rules_Notebook"
 format: html
 editor: visual
 knitr:
