@@ -1,0 +1,3 @@
+[formatters]
+r = "air"
+python = "ruff"

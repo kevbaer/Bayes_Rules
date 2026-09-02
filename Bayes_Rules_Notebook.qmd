@@ -20,34 +20,44 @@ set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
 data(fake_news)
 fake_news <- fake_news |> as_tibble()
 
-fake_news |> 
+fake_news |>
   count(type)
 ```
 
 ```{r}
-fake_news |> 
+fake_news |>
   summarize(n = n(), .by = c(title_has_excl, type))
 ```
 
 ```{r}
-sim_params <- tibble(type = c("real", "fake"),
-                     prior = c(0.6, 0.4))
+sim_params <- tibble(type = c("real", "fake"), prior = c(0.6, 0.4))
 
 set.seed(1234)
 
-sims <- sample(sim_params$type, size = 10000, prob = sim_params$prior, replace = TRUE) |>
-  enframe(value = "type") |> 
-  mutate(data_model = case_when(
-    type == "fake" ~ .2667,
-    type == "real" ~ .0222
-  )) |> 
-  rowwise() |> 
-  mutate(usage = sample(
-    c("no", "yes"), size = 1, prob = c(1- data_model, data_model)
-    )) |> 
+sims <- sample(
+  sim_params$type,
+  size = 10000,
+  prob = sim_params$prior,
+  replace = TRUE
+) |>
+  enframe(value = "type") |>
+  mutate(
+    data_model = case_when(
+      type == "fake" ~ .2667,
+      type == "real" ~ .0222
+    )
+  ) |>
+  rowwise() |>
+  mutate(
+    usage = sample(
+      c("no", "yes"),
+      size = 1,
+      prob = c(1 - data_model, data_model)
+    )
+  ) |>
   ungroup()
 
-sims |> 
+sims |>
   summarize(n = n(), .by = c(usage, type))
 ```
 
@@ -60,7 +70,7 @@ ggplot(sims) +
 ```{r}
 data("pop_vs_soda")
 
-pop_vs_soda |> 
+pop_vs_soda |>
   summarize(n = n(), .by = c(pop, region))
 ```
 
@@ -70,17 +80,17 @@ prior <- c(0.1, 0.25, 0.65)
 
 set.seed(1234)
 chess_sim <- tibble(
-  pi = sample(chess, size = 10000, prob = prior, replace = TRUE) 
-)|> 
+  pi = sample(chess, size = 10000, prob = prior, replace = TRUE)
+) |>
   mutate(y = rbinom(n(), size = 6, prob = pi))
 
-chess_sim |> 
-  count(pi) |> 
+chess_sim |>
+  count(pi) |>
   mutate(prop = n / sum(n))
 ```
 
 ```{r}
-chess_sim |> 
+chess_sim |>
   ggplot() +
   aes(x = y) +
   stat_count(aes(y = after_stat(prop))) +
@@ -99,7 +109,7 @@ library(tidybayes)
 
 ```{r}
 ggplot() +
-  geom_function(fun = ~dbeta(., 45, 55), n = 10000) +
+  geom_function(fun = ~ dbeta(., 45, 55), n = 10000) +
   labs(title = "dbeta(45, 55)")
 ```
 
@@ -109,28 +119,38 @@ model_election <- brm(
   data = list(support = 30, n_in_poll = 50),
   family = binomial(link = "identity"),
   prior(beta(45, 55), class = b, lb = 0, ub = 1),
-  iter = 5000, warmup = 1000, seed = 1234, backend = "rstan",
+  iter = 5000,
+  warmup = 1000,
+  seed = 1234,
+  backend = "rstan",
   cores = 8
 )
 ```
 
 ```{r}
-model_election |> 
-  gather_draws(b_Intercept) |> 
+model_election |>
+  gather_draws(b_Intercept) |>
   ggplot(aes(x = .value)) +
   stat_halfeye(fill = "firebrick3") +
   labs(x = "pi", title = "Posterior for Michelle's support")
 ```
 
 ```{r}
-model_election |> 
-  gather_draws(b_Intercept) |> 
+model_election |>
+  gather_draws(b_Intercept) |>
   ggplot(aes(x = .value)) +
-   stat_function(geom = "area", 
-                fun = ~dbeta(., 45, 55), aes(fill = "Prior"), alpha = .75) +
+  stat_function(
+    geom = "area",
+    fun = ~ dbeta(., 45, 55),
+    aes(fill = "Prior"),
+    alpha = .75
+  ) +
   geom_density(aes(fill = "Posterior"), color = NA, alpha = 0.75) +
   scale_fill_manual(values = c("firebrick3", "grey37")) +
-  labs(x = "pi", title = "Posterior (Red) + Prior (Gray) for Michelle's support")
+  labs(
+    x = "pi",
+    title = "Posterior (Red) + Prior (Gray) for Michelle's support"
+  )
 ```
 
 ```{r}
@@ -139,19 +159,26 @@ model_milgram <- brm(
   data = list(obey = 26, participants = 40),
   family = binomial(link = "identity"),
   prior(beta(1, 10), class = b, lb = 0, ub = 1),
-  iter = 5000, warmup = 1000, seed = 1234,
-  backend = "rstan", cores = 8
+  iter = 5000,
+  warmup = 1000,
+  seed = 1234,
+  backend = "rstan",
+  cores = 8
 )
 ```
 
 ```{r}
-model_milgram |> 
-  gather_draws(b_Intercept) |> 
+model_milgram |>
+  gather_draws(b_Intercept) |>
   ggplot() +
   aes(x = .value) +
   geom_density(aes(fill = "Posterior"), color = NA, alpha = .75) +
-  stat_function(aes(fill = "Prior"), fun = ~dbeta(., 1, 10), 
-                alpha = .75, geom = "area") +
+  stat_function(
+    aes(fill = "Prior"),
+    fun = ~ dbeta(., 1, 10),
+    alpha = .75,
+    geom = "area"
+  ) +
   xlim(0, 1) +
   scale_fill_manual(values = c("firebrick3", "grey37")) +
   ggtitle("Listening to Authority: Prior (Gray) vs Posterior (Red)")
@@ -169,11 +196,12 @@ set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
 ```
 
 ```{r}
-grid_data <- tibble(pi_grid = seq(0, 1, length.out = 6)) |> 
-  mutate(prior = dbeta(pi_grid, 2, 2),
-         likelihood = dbinom(9, 10, pi_grid)) |> 
-  mutate(unnormalized = likelihood * prior,
-         posterior = unnormalized / sum (unnormalized))
+grid_data <- tibble(pi_grid = seq(0, 1, length.out = 6)) |>
+  mutate(prior = dbeta(pi_grid, 2, 2), likelihood = dbinom(9, 10, pi_grid)) |>
+  mutate(
+    unnormalized = likelihood * prior,
+    posterior = unnormalized / sum(unnormalized)
+  )
 
 grid_data
 ```
@@ -186,37 +214,46 @@ ggplot(grid_data) +
 ```
 
 ```{r}
-posterior_samples <- grid_data |> 
-  slice_sample(n = 10000, replace = TRUE, weight_by = posterior) 
+posterior_samples <- grid_data |>
+  slice_sample(n = 10000, replace = TRUE, weight_by = posterior)
 
-posterior_samples|> 
+posterior_samples |>
   count(pi_grid)
 ```
 
 ```{r}
 ggplot(posterior_samples) +
   aes(x = pi_grid) +
-  geom_histogram(aes(y = after_stat(density)), 
-                 color = "white", binwidth = 0.1, boundary = 0) +
-  stat_function(fun = ~dbeta(., 11, 3)) +
+  geom_histogram(
+    aes(y = after_stat(density)),
+    color = "white",
+    binwidth = 0.1,
+    boundary = 0
+  ) +
+  stat_function(fun = ~ dbeta(., 11, 3)) +
   xlim(c(0, 1))
 ```
 
 ```{r}
-grid_data <- tibble(pi_grid = seq(0, 1, length.out = 10000)) |> 
-  mutate(prior = dbeta(pi_grid, 2, 2),
-         likelihood = dbinom(9, 10, pi_grid)) |> 
-  mutate(unnormalized = likelihood * prior,
-         posterior = unnormalized / sum (unnormalized))
+grid_data <- tibble(pi_grid = seq(0, 1, length.out = 10000)) |>
+  mutate(prior = dbeta(pi_grid, 2, 2), likelihood = dbinom(9, 10, pi_grid)) |>
+  mutate(
+    unnormalized = likelihood * prior,
+    posterior = unnormalized / sum(unnormalized)
+  )
 
-posterior_samples <- grid_data |> 
-  slice_sample(n = 10000, replace = TRUE, weight_by = posterior) 
+posterior_samples <- grid_data |>
+  slice_sample(n = 10000, replace = TRUE, weight_by = posterior)
 
 ggplot(posterior_samples) +
   aes(x = pi_grid) +
-  geom_histogram(aes(y = after_stat(density)), 
-                 color = "white", binwidth = 0.01, boundary = 0) +
-  stat_function(fun = ~dbeta(., 11, 3)) +
+  geom_histogram(
+    aes(y = after_stat(density)),
+    color = "white",
+    binwidth = 0.01,
+    boundary = 0
+  ) +
+  stat_function(fun = ~ dbeta(., 11, 3)) +
   xlim(c(0, 1))
 ```
 
@@ -226,7 +263,7 @@ bb_sim <- cmdstan_model("06_stan/bb_sim.stan")
 
 ```{r}
 bb_sim_samples <- bb_sim$sample(
-  data = list(Y = 9), 
+  data = list(Y = 9),
   parallel_chains = 4,
   iter_warmup = 2500,
   iter_sampling = 2500,
@@ -236,23 +273,23 @@ bb_sim_samples <- bb_sim$sample(
 ```
 
 ```{r}
-bb_sim_samples |> 
-  spread_draws(pi) |> 
+bb_sim_samples |>
+  spread_draws(pi) |>
   head(4)
 ```
 
 ```{r}
-bb_sim_samples |> 
-  spread_draws(pi) |> 
-  ggplot() + 
+bb_sim_samples |>
+  spread_draws(pi) |>
+  ggplot() +
   aes(x = pi) +
   stat_density(geom = "area", fill = "firebrick3") +
-  stat_function(fun = ~dbeta(., 11, 3), color = "grey6", linewidth = 2)
+  stat_function(fun = ~ dbeta(., 11, 3), color = "grey6", linewidth = 2)
 ```
 
 ```{r}
 bb_sim_samples |>
-  gather_draws(pi) |> 
+  gather_draws(pi) |>
   ggplot(aes(x = .iteration, y = .value, color = as.factor(.chain))) +
   geom_line(linewidth = 0.1) +
   labs(color = "Chain")
@@ -262,13 +299,22 @@ Looks random!
 
 ```{r}
 bb_sim_samples |>
-  spread_draws(pi) |> 
-  mutate(draw_rank = rank(pi)) |> 
+  spread_draws(pi) |>
+  mutate(draw_rank = rank(pi)) |>
   ggplot(aes(x = draw_rank)) +
-  stat_bin(aes(color = factor(.chain)), geom = "step", binwidth = 500, 
-           position = position_identity(), boundary = 0) + 
+  stat_bin(
+    aes(color = factor(.chain)),
+    geom = "step",
+    binwidth = 500,
+    position = position_identity(),
+    boundary = 0
+  ) +
   labs(color = "Chain") +
-  theme(axis.text.y = element_blank(), axis.title.y = element_blank(), axis.ticks.y = element_blank())
+  theme(
+    axis.text.y = element_blank(),
+    axis.title.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
 ```
 
 According to McElreath (p. 284),
@@ -276,8 +322,8 @@ According to McElreath (p. 284),
 > If the chains are exploring the same space efficiently, the histograms should be similar to one another and largely overlapping.
 
 ```{r}
-bb_sim_samples |> 
-  spread_draws(pi) |> 
+bb_sim_samples |>
+  spread_draws(pi) |>
   ggplot() +
   aes(x = pi, color = factor(.chain)) +
   geom_density() +
@@ -290,7 +336,7 @@ Looks consistent across the four chains!
 brms::neff_ratio(bb_sim_samples)
 ```
 
-“Our 20,000 Markov chain values are about as useful as only 6800 independent samples (0.34 × 20000).” Happy that this number is greater than .1
+"Our 20,000 Markov chain values are about as useful as only 6800 independent samples (0.34 × 20000)." Happy that this number is greater than .1
 
 ```{r}
 bayesplot::mcmc_acf(bb_sim_samples$draws(variables = "pi"))
@@ -306,9 +352,9 @@ Not greater than 1.01 so good!
 
 ```{r}
 bb_sim_samples |>
-  gather_draws(pi) |> 
+  gather_draws(pi) |>
   ggplot(aes(x = .iteration, y = .value)) +
-  geom_line(size = 0.1) 
+  geom_line(size = 0.1)
 ```
 
 Looks random enough.
@@ -323,14 +369,18 @@ set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
 "Think of Markov chains as a tour around the range of posterior possible values of a parameter (like µ or π or whatever). The chains move around that parameter and hopefully converge around it, but the chains need a tour manager to do that properly."
 
 ```{r}
-one_mh_iteration <- function(w, current){
-  proposal <- runif(1, min = current-w, max = current + w)
+one_mh_iteration <- function(w, current) {
+  proposal <- runif(1, min = current - w, max = current + w)
   proposal_plausibility <- dnorm(proposal, 0, 1) * dnorm(6.25, proposal, 0.75)
   current_plausibility <- dnorm(current, 0, 1) * dnorm(6.25, current, 0.75)
-  
+
   alpha <- min(1, proposal_plausibility / current_plausibility)
-  next_stop <- sample(c(proposal, current), size = 1, prob = c(alpha, 1 - alpha))
-  
+  next_stop <- sample(
+    c(proposal, current),
+    size = 1,
+    prob = c(alpha, 1 - alpha)
+  )
+
   return(tibble(proposal, alpha, next_stop))
 }
 
@@ -339,18 +389,18 @@ one_mh_iteration(w = 1, current = 3)
 ```
 
 ```{r}
-mh_tour <- function(start = 3, N, w){
+mh_tour <- function(start = 3, N, w) {
   current <- start
   mu <- rep(0, N)
-  
-  for(i in 1:N){
+
+  for (i in 1:N) {
     where_next <- one_mh_iteration(w = w, current = current)
-    
+
     mu[i] <- where_next$next_stop
-    
+
     current <- where_next$next_stop
   }
-  
+
   return(tibble(.iteration = c(1:N), mu))
 }
 ```
@@ -359,17 +409,21 @@ mh_tour <- function(start = 3, N, w){
 set.seed(84735)
 tour_1 <- mh_tour(start = 3, N = 5000, w = 1)
 
-tour_1 |> 
+tour_1 |>
   ggplot(aes(x = .iteration, y = mu)) +
   geom_line(size = 0.1, alpha = 0.75)
 ```
 
 ```{r}
-tour_1 |> 
+tour_1 |>
   ggplot(aes(x = mu)) +
-  geom_histogram(aes(y = after_stat(density)),binwidth = 0.25, 
-                  color = "white", fill = "firebrick3") +
-  geom_function(fun = ~dnorm(., 4, 0.6), color = "grey12")
+  geom_histogram(
+    aes(y = after_stat(density)),
+    binwidth = 0.25,
+    color = "white",
+    fill = "firebrick3"
+  ) +
+  geom_function(fun = ~ dnorm(., 4, 0.6), color = "grey12")
 ```
 
 ## Chapter 8: Posterior Inference and Prediction
@@ -389,7 +443,7 @@ Our prior looks like
 
 ```{r}
 ggplot() +
-  stat_function(fun = ~dbeta(., 4, 6), geom = "area", fill = "#f6b97b")
+  stat_function(fun = ~ dbeta(., 4, 6), geom = "area", fill = "#f6b97b")
 ```
 
 ```{r}
@@ -398,18 +452,24 @@ glimpse(moma_sample, width = 80)
 ```
 
 ```{r}
-moma_sample |> 
+moma_sample |>
   count(genx)
 ```
 
 ```{r}
 ggplot() +
-  stat_function(aes(fill = "Prior: Beta (4, 6)"), 
-                fun = ~dbeta(., 4, 6), geom = "area") +
-  stat_function(aes(fill = "Posterior: Beta (18, 92)"), 
-                fun = ~dbeta(., 18, 92), geom = "area") +
+  stat_function(
+    aes(fill = "Prior: Beta (4, 6)"),
+    fun = ~ dbeta(., 4, 6),
+    geom = "area"
+  ) +
+  stat_function(
+    aes(fill = "Posterior: Beta (18, 92)"),
+    fun = ~ dbeta(., 18, 92),
+    geom = "area"
+  ) +
   scale_fill_manual(values = c("#940034", "#f6b97b")) +
-  theme(legend.position = "inside", legend.position.inside =  c(.8, .8))
+  theme(legend.position = "inside", legend.position.inside = c(.8, .8))
 ```
 
 ```{r}
@@ -421,10 +481,12 @@ model_pi_brms <- brm(
   family = binomial(link = "identity"),
   prior(beta(4, 6), class = b, lb = 0, ub = 1),
   sample_prior = TRUE,
-  iter = 5000, 
+  iter = 5000,
   warmup = 1000,
-  seed = 1234, 
-  backend = "cmdstanr", cores = 8, refresh = 0
+  seed = 1234,
+  backend = "cmdstanr",
+  cores = 8,
+  refresh = 0
 )
 ```
 
@@ -437,8 +499,11 @@ model_pi_stan <- cmdstan_model("08_stan/genx.stan")
 ```{r}
 pi_stan_samples <- model_pi_stan$sample(
   data = list(artworks = 100, num_genx = 14),
-  parallel_chains = 4, iter_warmup = 2500, iter_sampling = 2500,
-  refresh = 0, seed = 1234
+  parallel_chains = 4,
+  iter_warmup = 2500,
+  iter_sampling = 2500,
+  refresh = 0,
+  seed = 1234
 )
 ```
 
@@ -451,37 +516,39 @@ qbeta(c(0.025, 0.975), 18, 92)
 95% credible interval with highest posterior densities:
 
 ```{r}
-pi_stan_samples |> 
-  spread_draws(pi) |> 
+pi_stan_samples |>
+  spread_draws(pi) |>
   median_hdci(pi, width = .95)
 ```
 
 ```{r}
-pi_stan_samples |> 
-  spread_draws(pi) |> 
+pi_stan_samples |>
+  spread_draws(pi) |>
   ggplot() +
   aes(x = pi) +
-  stat_slab(aes(fill_ramp = after_stat(level)),
-            .width = c(0.5, 0.95, 1),
-            point_interval = "median_hdci",
-            fill = "#d65616") +
+  stat_slab(
+    aes(fill_ramp = after_stat(level)),
+    .width = c(0.5, 0.95, 1),
+    point_interval = "median_hdci",
+    fill = "#d65616"
+  ) +
   scale_fill_ramp_discrete(range = c(0.2, 1)) +
   labs(fill_ramp = "Credible Interval") +
   theme(legend.position = "inside", legend.position.inside = c(.83, .8))
 ```
 
 ```{r}
-pi_stan_samples |> 
-  spread_draws(pi) |> 
-  count(pi < .2) |> 
-  mutate(prob = n/sum(n))
+pi_stan_samples |>
+  spread_draws(pi) |>
+  count(pi < .2) |>
+  mutate(prob = n / sum(n))
 ```
 
 84.73% chance that pi is less than 0.2
 
 ```{r}
-pi_stan_samples |> 
-  spread_draws(pi) |> 
+pi_stan_samples |>
+  spread_draws(pi) |>
   ggplot(aes(x = pi)) +
   stat_halfeye(aes(fill_ramp = after_stat(x < 0.2)), fill = "#2db25f") +
   scale_fill_ramp_discrete(from = "#8ee7af", guide = "none") +
@@ -491,24 +558,35 @@ pi_stan_samples |>
 Region of Practical Equivalence (ROPE)
 
 ```{r}
-pi_stan_samples |> 
-  spread_draws(pi) |> 
-  summarize(prop_in_rope = sum(pi > 0.25 & pi < 0.35) / n(),
-            prop_outside_rope = 1 - prop_in_rope)
+pi_stan_samples |>
+  spread_draws(pi) |>
+  summarize(
+    prop_in_rope = sum(pi > 0.25 & pi < 0.35) / n(),
+    prop_outside_rope = 1 - prop_in_rope
+  )
 ```
 
 ```{r}
-pi_stan_samples |> 
-  spread_draws(pi) |> 
+pi_stan_samples |>
+  spread_draws(pi) |>
   ggplot() +
   aes(x = pi) +
-  stat_slab(aes(fill_ramp = after_stat(level)),
-            .width = c(0.95, 1),
-            point_interval = "median_hdci",
-            fill = "#d65616") +
+  stat_slab(
+    aes(fill_ramp = after_stat(level)),
+    .width = c(0.95, 1),
+    point_interval = "median_hdci",
+    fill = "#d65616"
+  ) +
   scale_fill_ramp_discrete(range = c(0.2, 1)) +
-  annotate(geom = "rect", xmin = 0.25, xmax = 0.35, 
-           ymin = -Inf, ymax = Inf, alpha = 0.3)+   geom_vline(xintercept = 0.3) +
+  annotate(
+    geom = "rect",
+    xmin = 0.25,
+    xmax = 0.35,
+    ymin = -Inf,
+    ymax = Inf,
+    alpha = 0.3
+  ) +
+  geom_vline(xintercept = 0.3) +
   xlim(c(0, 0.4)) +
   theme(legend.position = "none")
 ```
@@ -518,11 +596,12 @@ Posterior prediction
 ```{r}
 # brms way
 
-predicted_genx_after_20 <- model_pi_brms |> 
-  predicted_draws(newdata = tibble(artworks = 20)) |> 
-  ungroup() |> 
-  summarize(n = n(), .by = .prediction) |> 
-  mutate(prop = n / sum(n)) |> arrange(.prediction)
+predicted_genx_after_20 <- model_pi_brms |>
+  predicted_draws(newdata = tibble(artworks = 20)) |>
+  ungroup() |>
+  summarize(n = n(), .by = .prediction) |>
+  mutate(prop = n / sum(n)) |>
+  arrange(.prediction)
 
 predicted_genx_after_20
 ```
@@ -534,18 +613,18 @@ ggplot(predicted_genx_after_20) +
 ```
 
 ```{r}
-predicted_genx_after_20 |> 
-  filter(.prediction == 3) |> 
+predicted_genx_after_20 |>
+  filter(.prediction == 3) |>
   pull(prop)
 ```
 
 Distribution of above
 
 ```{r}
-model_pi_brms |> 
-  epred_draws(newdata = tibble(artworks = 20)) |> 
-  ungroup() |> 
-  ggplot() + 
+model_pi_brms |>
+  epred_draws(newdata = tibble(artworks = 20)) |>
+  ungroup() |>
+  ggplot() +
   aes(x = .epred) +
   stat_halfeye()
 ```
@@ -568,10 +647,12 @@ set_theme(theme_bw(base_family = "Barlow", base_size = 16))
 
 data(bikes, package = "bayesrules")
 
-bikes <- bikes |> 
-  as_tibble() |> 
-  mutate(temp_feel_centered = scale(temp_feel, scale = FALSE),
-         temp_feel_c = as.numeric(temp_feel_centered))
+bikes <- bikes |>
+  as_tibble() |>
+  mutate(
+    temp_feel_centered = scale(temp_feel, scale = FALSE),
+    temp_feel_c = as.numeric(temp_feel_centered)
+  )
 
 temp_details <- attributes(bikes$temp_feel_centered) %>%
   set_names(janitor::make_clean_names(names(.)))
@@ -581,19 +662,23 @@ Our priors for our three parameters:
 
 ```{r}
 p1 <- ggplot() +
-  geom_function(fun = ~dnorm(., 5000, 1000), linewidth = 1, color = "#002c55") +
+  geom_function(
+    fun = ~ dnorm(., 5000, 1000),
+    linewidth = 1,
+    color = "#002c55"
+  ) +
   xlim(c(1000, 9000)) +
   labs(x = "**β<sub>0c </sub>**<br>Average Daily<br>Ridership") +
   theme(axis.title.x = element_markdown())
 
 p2 <- ggplot() +
-  geom_function(fun = ~dnorm(., 100, 40), linewidth = 1, color = "#940034") +
+  geom_function(fun = ~ dnorm(., 100, 40), linewidth = 1, color = "#940034") +
   xlim(c(-50, 250)) +
   labs(x = "**β<sub>1 </sub>**<br>Temperature on<br>Ridership") +
   theme(axis.title.x = element_markdown())
 
 p3 <- ggplot() +
-  geom_function(fun = ~dexp(., 1/1250), linewidth = 1, color = "#2db25f") +
+  geom_function(fun = ~ dexp(., 1 / 1250), linewidth = 1, color = "#2db25f") +
   xlim(c(0, 7000)) +
   labs(x = "**β<sub>0c </sub>**<br>Variation in<br>Ridership") +
   theme(axis.title.x = element_markdown())
@@ -604,10 +689,11 @@ p1 + p2 + p3
 Does our prior only model produce reasonable results?
 
 ```{r}
-priors <- c(prior(normal(5000, 1000), class = Intercept),
-            prior(normal(100, 40), class = b, coef = "temp_feel_c"),
-            prior(exponential(0.0008), class = sigma)
-            )
+priors <- c(
+  prior(normal(5000, 1000), class = Intercept),
+  prior(normal(100, 40), class = b, coef = "temp_feel_c"),
+  prior(exponential(0.0008), class = sigma)
+)
 
 bike_prior_only <- brm(
   bf(rides ~ temp_feel_c),
@@ -615,16 +701,25 @@ bike_prior_only <- brm(
   family = gaussian(),
   prior = priors,
   sample_prior = "only",
-  backend = "cmdstanr", cores = 4, seed = 1234, refresh = 0
+  backend = "cmdstanr",
+  cores = 4,
+  seed = 1234,
+  refresh = 0
 )
 ```
 
 ```{r}
-draws_prior <- tibble(temp_feel_c = seq(45 - temp_details$scaled_center, 90 - temp_details$scaled_center, 1)) |> 
-  add_epred_draws(bike_prior_only, ndraws = 200) |> 
+draws_prior <- tibble(
+  temp_feel_c = seq(
+    45 - temp_details$scaled_center,
+    90 - temp_details$scaled_center,
+    1
+  )
+) |>
+  add_epred_draws(bike_prior_only, ndraws = 200) |>
   mutate(unscaled = temp_feel_c + temp_details$scaled_center)
 
-draws_prior |> 
+draws_prior |>
   ggplot() +
   aes(x = unscaled, y = .epred) +
   geom_line(aes(group = .draw), alpha = .2) +
@@ -636,16 +731,22 @@ Yes looks pretty good.
 ```{r}
 # brms
 
-priors <- c(prior(normal(5000, 1000), class = Intercept),
-            prior(normal(100, 40), class = b, coef = "temp_feel_c"),
-            prior(exponential(0.0008), class = sigma))
+priors <- c(
+  prior(normal(5000, 1000), class = Intercept),
+  prior(normal(100, 40), class = b, coef = "temp_feel_c"),
+  prior(exponential(0.0008), class = sigma)
+)
 
 bike_brms <- brm(
   bf(rides ~ temp_feel_c),
   data = bikes,
   family = gaussian(),
   prior = priors,
-  chains = 4, iter = 5000*2, seed = 1234, backend = "cmdstanr", refresh = 0,
+  chains = 4,
+  iter = 5000 * 2,
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0,
   file = "09_manual_cache/bike-brms"
 )
 ```
@@ -655,8 +756,12 @@ bike_stan <- cmdstan_model("09_stan/bike_simple.stan")
 
 bike_stan_samples <- bike_stan$sample(
   data = list(n = nrow(bikes), Y = bikes$rides, X = bikes$temp_feel_c),
-  parallel_chains = 4, iter_warmup = 5000, iter_sampling = 5000,
-  refresh = 0, seed = 1234, output_dir = "09_stan"
+  parallel_chains = 4,
+  iter_warmup = 5000,
+  iter_sampling = 5000,
+  refresh = 0,
+  seed = 1234,
+  output_dir = "09_stan"
 )
 ```
 
@@ -669,8 +774,8 @@ rhat(bike_brms)
 ```
 
 ```{r}
-bike_brms |> 
-  gather_draws(b_Intercept, b_temp_feel_c, sigma) |> 
+bike_brms |>
+  gather_draws(b_Intercept, b_temp_feel_c, sigma) |>
   ggplot() +
   aes(x = .iteration, y = .value, color = as.factor(.chain)) +
   geom_line(linewidth = 0.05) +
@@ -680,22 +785,32 @@ bike_brms |>
 ```
 
 ```{r}
-bike_brms |> 
-  gather_draws(b_Intercept, b_temp_feel_c, sigma) |> 
-  group_by(.variable) |> 
-  mutate(draw_rank = rank(.value)) |> 
+bike_brms |>
+  gather_draws(b_Intercept, b_temp_feel_c, sigma) |>
+  group_by(.variable) |>
+  mutate(draw_rank = rank(.value)) |>
   ggplot() +
   aes(x = draw_rank) +
-  stat_bin(aes(color = factor(.chain)), geom = "step", binwidth = 1000, 
-               position = position_identity(), boundary = 0) +
+  stat_bin(
+    aes(color = factor(.chain)),
+    geom = "step",
+    binwidth = 1000,
+    position = position_identity(),
+    boundary = 0
+  ) +
   labs(color = "Chain") +
   facet_wrap(~.variable) +
-  theme(legend.position = "bottom", axis.text.y = element_blank(), axis.title.y = element_blank(), axis.ticks.y = element_blank())
+  theme(
+    legend.position = "bottom",
+    axis.text.y = element_blank(),
+    axis.title.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
 ```
 
 ```{r}
-bike_brms |> 
-  gather_draws(b_Intercept, b_temp_feel_c, sigma) |> 
+bike_brms |>
+  gather_draws(b_Intercept, b_temp_feel_c, sigma) |>
   ggplot() +
   aes(x = .value, color = factor(.chain)) +
   geom_density() +
@@ -705,117 +820,165 @@ bike_brms |>
 ```
 
 ```{r}
-tidy(bike_brms, conf.int = TRUE, conf.level = .8) |> 
+tidy(bike_brms, conf.int = TRUE, conf.level = .8) |>
   select(-c(effect, component, group))
 ```
 
 ```{r}
-bike_brms |> 
-  gather_draws(b_Intercept, b_temp_feel_c, sigma) |> 
+bike_brms |>
+  gather_draws(b_Intercept, b_temp_feel_c, sigma) |>
   ggplot() +
   aes(x = .value, fill = .variable) +
   stat_halfeye(normalize = "xy") +
-  scale_fill_manual(values = c("firebrick3", "grey50", "blue4"), guide = "none") +
+  scale_fill_manual(
+    values = c("firebrick3", "grey50", "blue4"),
+    guide = "none"
+  ) +
   facet_wrap(~.variable, scales = "free_x") +
   labs(x = "Parameter Posterior")
 ```
 
 ```{r}
-bikes |> 
-  add_linpred_draws(bike_brms, ndraws = 100) |> 
+bikes |>
+  add_linpred_draws(bike_brms, ndraws = 100) |>
   ggplot() +
   aes(x = temp_feel, y = rides) +
   geom_point(data = bikes, size = 0.5) +
-  geom_line(aes(y = .linpred, group = .draw), 
-            alpha = .2, linewidth = .5, color = "navy") +
+  geom_line(
+    aes(y = .linpred, group = .draw),
+    alpha = .2,
+    linewidth = .5,
+    color = "navy"
+  ) +
   labs(x = "Temp", y = "Rides")
 ```
 
 Is beta_1 greater than 1?
 
 ```{r}
-bike_brms |> 
-  spread_draws(b_temp_feel_c) |> 
-  count(b_temp_feel_c > 1) |> 
+bike_brms |>
+  spread_draws(b_temp_feel_c) |>
+  count(b_temp_feel_c > 1) |>
   mutate(prob = n / sum(n))
 ```
 
 ```{r}
-p1 <- bike_brms |> 
-  linpred_draws(newdata = tibble(temp_feel_c = (75 - temp_details$scaled_center))) |> 
+p1 <- bike_brms |>
+  linpred_draws(
+    newdata = tibble(temp_feel_c = (75 - temp_details$scaled_center))
+  ) |>
   ggplot() +
   aes(x = .linpred) +
   stat_halfeye(fill = "#0188ac") +
-  labs(title = "Predicted Average Riders\non all days with 75˚",
-       x = "Predicted Riders", y = NULL)
+  labs(
+    title = "Predicted Average Riders\non all days with 75˚",
+    x = "Predicted Riders",
+    y = NULL
+  )
 
-p2 <- bike_brms |> 
-  predicted_draws(newdata = tibble(temp_feel_c = (75 - temp_details$scaled_center))) |> 
+p2 <- bike_brms |>
+  predicted_draws(
+    newdata = tibble(temp_feel_c = (75 - temp_details$scaled_center))
+  ) |>
   ggplot() +
   aes(x = .prediction) +
   stat_halfeye(fill = "#b3114b") +
-  labs(title = "Predicted Riders on a\nspecific day with 75˚",
-       x = "Predicted Riders", y = NULL)
+  labs(
+    title = "Predicted Riders on a\nspecific day with 75˚",
+    x = "Predicted Riders",
+    y = NULL
+  )
 
-p1|p2
+p1 | p2
 ```
 
 ```{r}
-priors <- c(prior(normal(5000, 1000), class = Intercept),
-            prior(normal(100, 40), class = b, coef = "temp_feel_c"),
-            prior(exponential(0.0008), class = sigma))
+priors <- c(
+  prior(normal(5000, 1000), class = Intercept),
+  prior(normal(100, 40), class = b, coef = "temp_feel_c"),
+  prior(exponential(0.0008), class = sigma)
+)
 
 bike_phases <- tribble(
-  ~phase, ~data,
-  1, slice(bikes, 1:30),
-  2, slice(bikes, 1:60),
-  3, bikes
-) |> 
-  mutate(model = map(data, ~{
-    brm(
-      bf(rides ~ temp_feel_c),
-      data = .,
-      family = gaussian(),
-      prior = priors,
-      chains = 4, iter = 5000*2, seed = 1234,
-      backend = "cmdstanr", refresh = 0
+  ~phase , ~data              ,
+       1 , slice(bikes, 1:30) ,
+       2 , slice(bikes, 1:60) ,
+       3 , bikes
+) |>
+  mutate(
+    model = map(
+      data,
+      ~ {
+        brm(
+          bf(rides ~ temp_feel_c),
+          data = .,
+          family = gaussian(),
+          prior = priors,
+          chains = 4,
+          iter = 5000 * 2,
+          seed = 1234,
+          backend = "cmdstanr",
+          refresh = 0
+        )
+      }
     )
-  }))
+  )
 ```
 
 ```{r}
-bike_phases_draw <- bike_phases |> 
-  mutate(draws = map(model, ~spread_draws(., b_temp_feel_c)))
+bike_phases_draw <- bike_phases |>
+  mutate(draws = map(model, ~ spread_draws(., b_temp_feel_c)))
 
-phases_coefs <- bike_phases_draw |> 
-  mutate(coef_plot = map2(draws, phase, ~{
-    ggplot(.x) +
-      aes(x = b_temp_feel_c) +
-      stat_halfeye(fill = "#b3114b") +
-      coord_cartesian(xlim = c(-10, 100)) +
-      labs(title = paste("Phase", .y))
-  }))
+phases_coefs <- bike_phases_draw |>
+  mutate(
+    coef_plot = map2(
+      draws,
+      phase,
+      ~ {
+        ggplot(.x) +
+          aes(x = b_temp_feel_c) +
+          stat_halfeye(fill = "#b3114b") +
+          coord_cartesian(xlim = c(-10, 100)) +
+          labs(title = paste("Phase", .y))
+      }
+    )
+  )
 
 wrap_plots(phases_coefs$coef_plot)
 ```
 
 ```{r}
-bike_phase_preds <- bike_phases |> 
-  mutate(preds = map2(data, model, ~{
-    .x |> 
-      add_linpred_draws(.y, ndraws = 50) |> 
-      ungroup()
-  }))
+bike_phase_preds <- bike_phases |>
+  mutate(
+    preds = map2(
+      data,
+      model,
+      ~ {
+        .x |>
+          add_linpred_draws(.y, ndraws = 50) |>
+          ungroup()
+      }
+    )
+  )
 
-phases_preds <- bike_phase_preds |> 
-  mutate(pred_plot = pmap(list(data, preds, phase), ~{
-    ggplot(..2, aes(x = temp_feel, y = rides)) +
-      geom_point(data = ..1, size = 0.5) +
-      geom_line(aes(y = .linpred, group = .draw), 
-                alpha = 0.2, size = 0.5, color = "navy") +
-      labs(title = paste("Phase", ..3)) +
-      coord_cartesian(xlim = c(40, 90), ylim = c(0, 7000))
-  }))
+phases_preds <- bike_phase_preds |>
+  mutate(
+    pred_plot = pmap(
+      list(data, preds, phase),
+      ~ {
+        ggplot(..2, aes(x = temp_feel, y = rides)) +
+          geom_point(data = ..1, size = 0.5) +
+          geom_line(
+            aes(y = .linpred, group = .draw),
+            alpha = 0.2,
+            size = 0.5,
+            color = "navy"
+          ) +
+          labs(title = paste("Phase", ..3)) +
+          coord_cartesian(xlim = c(40, 90), ylim = c(0, 7000))
+      }
+    )
+  )
 
 wrap_plots(phases_preds$pred_plot)
 ```
@@ -830,21 +993,23 @@ ggplot(bikes) +
 ```
 
 ```{r}
-bike_brms |> 
-  spread_draws(b_Intercept, b_temp_feel_c, sigma) |> 
+bike_brms |>
+  spread_draws(b_Intercept, b_temp_feel_c, sigma) |>
   select(starts_with("b_"), sigma)
 ```
 
 ```{r}
-first_draw <- bike_brms |> 
-  spread_draws(b_Intercept, b_temp_feel_c, sigma) |> 
+first_draw <- bike_brms |>
+  spread_draws(b_Intercept, b_temp_feel_c, sigma) |>
   slice(1)
 
-one_rep <- bikes |> 
-  mutate(mu = first_draw$b_Intercept + (first_draw$b_temp_feel_c * temp_feel_c),
-         y_rep = rnorm(500, mu, first_draw$sigma))
+one_rep <- bikes |>
+  mutate(
+    mu = first_draw$b_Intercept + (first_draw$b_temp_feel_c * temp_feel_c),
+    y_rep = rnorm(500, mu, first_draw$sigma)
+  )
 
-one_rep |> 
+one_rep |>
   select(temp_feel, temp_feel_c, rides, y_rep)
 ```
 
@@ -856,14 +1021,16 @@ ggplot(one_rep) +
 ```
 
 ```{r}
-lotsa_draws <- bike_brms |> 
-  spread_draws(b_Intercept, b_temp_feel_c, sigma) |> 
-  slice_sample(n = 25) |> 
+lotsa_draws <- bike_brms |>
+  spread_draws(b_Intercept, b_temp_feel_c, sigma) |>
+  slice_sample(n = 25) |>
   mutate(id = 1:n())
 
-lotsa_reps <- lotsa_draws |> 
-  mutate(mu = map2(b_Intercept, b_temp_feel_c, ~.x + .y * bikes$temp_feel_c),
-         y_rep = map2(mu, sigma, ~rnorm(500, .x, .y))) |>
+lotsa_reps <- lotsa_draws |>
+  mutate(
+    mu = map2(b_Intercept, b_temp_feel_c, ~ .x + .y * bikes$temp_feel_c),
+    y_rep = map2(mu, sigma, ~ rnorm(500, .x, .y))
+  ) |>
   unnest(y_rep)
 
 ggplot(lotsa_reps) +
@@ -877,52 +1044,82 @@ pp_check(bike_brms, ndraws = 25)
 ```
 
 ```{r}
-bike_brms |> 
-  add_predicted_draws(newdata = bikes, ndraws = 100) |> 
+bike_brms |>
+  add_predicted_draws(newdata = bikes, ndraws = 100) |>
   ggplot() +
   aes(x = temp_feel) +
-  stat_interval(aes(y = .prediction, color_ramp = after_stat(level)), alpha = .25,
-                .width = c(0.5, 0.9), color = "#940034") +
+  stat_interval(
+    aes(y = .prediction, color_ramp = after_stat(level)),
+    alpha = .25,
+    .width = c(0.5, 0.9),
+    color = "#940034"
+  ) +
   scale_color_ramp_discrete(range = c(.5, 1)) +
-  geom_point(aes(y = rides), size = 2.5, pch = 21, color = "white", fill = "black")
+  geom_point(
+    aes(y = rides),
+    size = 2.5,
+    pch = 21,
+    color = "white",
+    fill = "black"
+  )
 ```
 
 ```{r}
-kfold_brms <- bikes |> 
-  modelr::crossv_kfold(k = 10) |> 
-  mutate(model = map(train, ~{
-    brm(
-      bf(rides ~ temp_feel_c),
-      data = .,
-      family = gaussian(),
-      prior = priors,
-      chains = 4, iter = 5000 * 2, seed = 1234, backend = "cmdstanr", refresh = 0
+kfold_brms <- bikes |>
+  modelr::crossv_kfold(k = 10) |>
+  mutate(
+    model = map(
+      train,
+      ~ {
+        brm(
+          bf(rides ~ temp_feel_c),
+          data = .,
+          family = gaussian(),
+          prior = priors,
+          chains = 4,
+          iter = 5000 * 2,
+          seed = 1234,
+          backend = "cmdstanr",
+          refresh = 0
+        )
+      }
     )
-  }))
+  )
 ```
 
 ```{r}
-mae_kfold_brms <- kfold_brms |> 
-  mutate(predictions = map2(test, model, ~{
-    .x |> 
-      as_tibble() |> 
-      add_predicted_draws(.y) |> 
-      ungroup()
-  })) |> 
-  mutate(mae = map(predictions, ~{
-    .x |> 
-      mutate(error = rides - .prediction) |> 
-      summarize(
-        mae = median(abs(error)),
-        mae_scaled = median(abs(error / sd(.prediction)))
-      )
-  }))
+mae_kfold_brms <- kfold_brms |>
+  mutate(
+    predictions = map2(
+      test,
+      model,
+      ~ {
+        .x |>
+          as_tibble() |>
+          add_predicted_draws(.y) |>
+          ungroup()
+      }
+    )
+  ) |>
+  mutate(
+    mae = map(
+      predictions,
+      ~ {
+        .x |>
+          mutate(error = rides - .prediction) |>
+          summarize(
+            mae = median(abs(error)),
+            mae_scaled = median(abs(error / sd(.prediction)))
+          )
+      }
+    )
+  )
 ```
 
 ```{r}
-mae_kfold_brms |> 
-  select(mae) |> 
-  unnest(mae) |> 
+mae_kfold_brms |>
+  select(mae) |>
+  unnest(mae) |>
   summarize(across(everything(), mean))
 ```
 
@@ -946,29 +1143,35 @@ set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
 
 data(weather_WU, package = "bayesrules")
 
-weather_WU <- weather_WU |> 
-  select(location, windspeed9am, humidity9am, pressure9am, temp9am, temp3pm) |> 
+weather_WU <- weather_WU |>
+  select(location, windspeed9am, humidity9am, pressure9am, temp9am, temp3pm) |>
   mutate(
-    across(c(temp9am, humidity9am, temp3pm, pressure9am, windspeed9am),
-           ~scale(., scale = FALSE), .names = "{col}_centered")
-  ) |> 
+    across(
+      c(temp9am, humidity9am, temp3pm, pressure9am, windspeed9am),
+      ~ scale(., scale = FALSE),
+      .names = "{col}_centered"
+    )
+  ) |>
   mutate(
-    across(c(temp9am, humidity9am, temp3pm, pressure9am, windspeed9am),
-           ~as.numeric(scale(., scale = FALSE)), .names = "{col}_c")
+    across(
+      c(temp9am, humidity9am, temp3pm, pressure9am, windspeed9am),
+      ~ as.numeric(scale(., scale = FALSE)),
+      .names = "{col}_c"
+    )
   )
 
-extract_attributes <- function(x){
+extract_attributes <- function(x) {
   attributes(x) %>%
     set_names(janitor::make_clean_names(names(.))) %>%
     as_tibble() %>%
     slice(1)
 }
 
-unscaled <- weather_WU |> 
-  select(ends_with("_centered")) |> 
-  summarize(across(everything(), ~extract_attributes(.))) |> 
-  pivot_longer(everything()) |> 
-  unnest(value) |> 
+unscaled <- weather_WU |>
+  select(ends_with("_centered")) |>
+  summarize(across(everything(), ~ extract_attributes(.))) |>
+  pivot_longer(everything()) |>
+  unnest(value) |>
   split(~name)
 ```
 
@@ -979,22 +1182,27 @@ ggplot(weather_WU) +
 ```
 
 ```{r}
-priors <- c(prior(normal(25, 5), class = Intercept),
-            prior(normal(0, 2.5), class = b, coef = "temp9am"),
-            prior(exponential(1), class = sigma)
-            )
+priors <- c(
+  prior(normal(25, 5), class = Intercept),
+  prior(normal(0, 2.5), class = b, coef = "temp9am"),
+  prior(exponential(1), class = sigma)
+)
 
 weather_simple_brms <- brm(
-  bf(temp3pm ~temp9am),
+  bf(temp3pm ~ temp9am),
   data = weather_WU,
-  family = gaussian(), 
+  family = gaussian(),
   prior = priors,
-  chains = 4, iter = 5000*2, seed = 1234, backend = "cmdstanr", refresh = 0
+  chains = 4,
+  iter = 5000 * 2,
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0
 )
 ```
 
 ```{r}
-pp_check(weather_simple_brms, ndraws = 25) + 
+pp_check(weather_simple_brms, ndraws = 25) +
   theme(legend.position = "inside", legend.position.inside = c(.9, .8))
 ```
 
@@ -1011,9 +1219,9 @@ ggplot(weather_WU) +
 ggplot(weather_WU) +
   aes(x = temp9am, y = temp3pm, color = location) +
   geom_point() +
-  geom_smooth(method = "lm", se = FALSE, formula = "y ~ x") + 
+  geom_smooth(method = "lm", se = FALSE, formula = "y ~ x") +
   paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1") +
-labs(x = "9 AM temperature", y = "3 PM temperature", color = NULL) +
+  labs(x = "9 AM temperature", y = "3 PM temperature", color = NULL) +
   theme(legend.position = "inside", legend.position.inside = c(.15, .85))
 ```
 
@@ -1030,22 +1238,29 @@ priors <- c(
 weather_location_prior_brms <- brm(
   bf(temp3pm ~ temp9am_c + location),
   data = weather_WU,
-  family = gaussian(), 
+  family = gaussian(),
   prior = priors,
-  chains = 4, iter = 5000*2, seed = 1234,
-  backend = "cmdstanr", refresh = 0, sample_prior = "only"
+  chains = 4,
+  iter = 5000 * 2,
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0,
+  sample_prior = "only"
 )
 
-p1 <- weather_WU |> 
-  add_predicted_draws(weather_location_prior_brms, ndraws = 100) |> 
+p1 <- weather_WU |>
+  add_predicted_draws(weather_location_prior_brms, ndraws = 100) |>
   ggplot() +
   aes(x = .prediction, group = .draw) +
   geom_density(linewidth = 0.25, color = "hotpink2")
 
-p2 <- weather_WU |> 
-  add_epred_draws(weather_location_prior_brms, ndraws = 100) |> 
+p2 <- weather_WU |>
+  add_epred_draws(weather_location_prior_brms, ndraws = 100) |>
   ggplot(aes(x = temp9am, y = .epred)) +
-  geom_line(aes(group = paste(location, .draw), color = location), alpha = 0.2) +
+  geom_line(
+    aes(group = paste(location, .draw), color = location),
+    alpha = 0.2
+  ) +
   scale_color_manual(values = c("lightblue3", "firebrick3")) +
   labs(x = "9 AM temperature", y = "3 PM temperature", color = NULL) +
   theme(legend.position = "bottom")
@@ -1064,26 +1279,32 @@ priors <- c(
 weather_location_brms <- brm(
   bf(temp3pm ~ temp9am_c + location),
   data = weather_WU,
-  family = gaussian(), 
+  family = gaussian(),
   prior = priors,
-  chains = 4, iter = 5000*2, seed = 1234,
-  backend = "cmdstanr", refresh = 0
+  chains = 4,
+  iter = 5000 * 2,
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0
 )
 ```
 
 ```{r}
-tidy(weather_location_brms, conf.int = TRUE, conf.level = 0.8) |> 
+tidy(weather_location_brms, conf.int = TRUE, conf.level = 0.8) |>
   select(-c(component, effect, group))
 ```
 
 ```{r}
-weather_WU |> 
-  add_linpred_draws(weather_location_brms, ndraws = 100) |> 
+weather_WU |>
+  add_linpred_draws(weather_location_brms, ndraws = 100) |>
   ggplot() +
   aes(x = temp9am, y = temp3pm, color = location) +
   geom_point(size = .5) +
-  geom_line(aes(y = .linpred, group = paste(location, .draw)), 
-            alpha = .2, linewidth = .5) + 
+  geom_line(
+    aes(y = .linpred, group = paste(location, .draw)),
+    alpha = .2,
+    linewidth = .5
+  ) +
   paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1") +
   labs(x = "9 AM temperature", y = "3 PM temperature", color = NULL) +
   theme(legend.position = "inside", legend.position.inside = c(.15, .85))
@@ -1095,49 +1316,76 @@ pp_check(weather_location_brms, ndraws = 25) +
 ```
 
 ```{r}
-weather_location_brms |> 
-  predicted_draws(newdata = expand_grid(temp9am_c = 10 - unscaled$temp9am_centered$scaled_center, location = c("Wollongong", "Uluru"))) |> 
+weather_location_brms |>
+  predicted_draws(
+    newdata = expand_grid(
+      temp9am_c = 10 - unscaled$temp9am_centered$scaled_center,
+      location = c("Wollongong", "Uluru")
+    )
+  ) |>
   ggplot() +
   aes(x = .prediction, y = location, fill = location) +
   stat_halfeye() +
-  paletteer::scale_fill_paletteer_d("wesanderson::GrandBudapest1", guide = "none") +
+  paletteer::scale_fill_paletteer_d(
+    "wesanderson::GrandBudapest1",
+    guide = "none"
+  ) +
   labs(x = "Predicted 3 PM temperature", y = NULL)
 ```
 
 ```{r}
-priors <- c(prior(normal(25, 5), class = Intercept),
-            prior(normal(0, 2.5), class = b),
-            prior(exponential(1), class = sigma))
+priors <- c(
+  prior(normal(25, 5), class = Intercept),
+  prior(normal(0, 2.5), class = b),
+  prior(exponential(1), class = sigma)
+)
 
 weather_full_brms <- brm(
-  bf(temp3pm ~ temp9am_c + humidity9am_c + windspeed9am_c + pressure9am_c + location),
-    data = weather_WU,
+  bf(
+    temp3pm ~ temp9am_c +
+      humidity9am_c +
+      windspeed9am_c +
+      pressure9am_c +
+      location
+  ),
+  data = weather_WU,
   family = gaussian(),
   prior = priors,
-  chains = 4, iter = 5000*2, seed = 1234, 
-  backend = "cmdstanr", refresh = 0
+  chains = 4,
+  iter = 5000 * 2,
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0
 )
 ```
 
 ```{r}
 pp_check(weather_full_brms, ndraws = 25) +
-    theme(legend.position = "inside", legend.position.inside = c(.9, .8))
+  theme(legend.position = "inside", legend.position.inside = c(.9, .8))
 ```
 
 ```{r}
-tidy(weather_full_brms, conf.int = TRUE, conf.level = 0.8) |> 
+tidy(weather_full_brms, conf.int = TRUE, conf.level = 0.8) |>
   select(-c(effect, component, group))
 ```
 
 ```{r}
 models_brms <- tribble(
-  ~model_name, ~model,
-  "Temperature only", weather_simple_brms, 
-  "Temperature + location", weather_location_brms, 
-  "Full model", weather_full_brms
-) |> 
-  mutate(ppcheck = map2(model, model_name, ~pp_check(.x, ndraws = 25) + labs(title = .y) + theme(legend.position = "inside", legend.position.inside = c(.85, .85)))) |> 
-  mutate(loo = map(model, ~loo(.)))
+  ~model_name              , ~model                ,
+  "Temperature only"       , weather_simple_brms   ,
+  "Temperature + location" , weather_location_brms ,
+  "Full model"             , weather_full_brms
+) |>
+  mutate(
+    ppcheck = map2(
+      model,
+      model_name,
+      ~ pp_check(.x, ndraws = 25) +
+        labs(title = .y) +
+        theme(legend.position = "inside", legend.position.inside = c(.85, .85))
+    )
+  ) |>
+  mutate(loo = map(model, ~ loo(.)))
 ```
 
 ```{r}
@@ -1145,96 +1393,138 @@ wrap_plots(models_brms$ppcheck)
 ```
 
 ```{r}
-loo_brms <- models_brms |> 
-  mutate(loo_stuff = map(loo, ~as_tibble(.$estimates, rownames = "statistic"))) |> 
-  select(model_name, loo_stuff) |> 
-  unnest(loo_stuff) |> 
-  filter(statistic == "elpd_loo") |> 
+loo_brms <- models_brms |>
+  mutate(
+    loo_stuff = map(loo, ~ as_tibble(.$estimates, rownames = "statistic"))
+  ) |>
+  select(model_name, loo_stuff) |>
+  unnest(loo_stuff) |>
+  filter(statistic == "elpd_loo") |>
   arrange(desc(Estimate))
 
 loo_brms
 ```
 
 ```{r}
-loo_brms |> 
-  mutate(model_name = fct_rev(fct_inorder(model_name))) |> 
+loo_brms |>
+  mutate(model_name = fct_rev(fct_inorder(model_name))) |>
   ggplot() +
   aes(x = Estimate, y = model_name) +
-  geom_pointrange(aes(xmin = Estimate - 2* SE, xmax = Estimate + 2 * SE))
+  geom_pointrange(aes(xmin = Estimate - 2 * SE, xmax = Estimate + 2 * SE))
 ```
 
 ```{r}
-models_brms |> 
-  pull(loo) |> 
-  set_names(models_brms$model_name) |> 
+models_brms |>
+  pull(loo) |>
+  set_names(models_brms$model_name) |>
   loo_compare()
 ```
 
 ```{r}
-
-
-cv_weather_WU <- modelr::crossv_kfold(weather_WU, k = 10) |> 
+cv_weather_WU <- modelr::crossv_kfold(weather_WU, k = 10) |>
   mutate(
     model1 = map(train, ~weather_simple_brms),
     model2 = map(train, ~weather_location_brms),
     model3 = map(train, ~weather_full_brms)
-  ) |> 
-    mutate(predictions1 = map2(test, model1, ~{
-    .x |> 
-      as_tibble() |> 
-      add_predicted_draws(.y) |> 
-      ungroup()
-  })) |> 
-  mutate(predictions2 = map2(test, model2, ~{
-    .x |> 
-      as_tibble() |> 
-      add_predicted_draws(.y) |> 
-      ungroup()
-  })) |> 
-  mutate(predictions3 = map2(test, model3, ~{
-    .x |> 
-      as_tibble() |> 
-      add_predicted_draws(.y) |> 
-      ungroup()
-  })) |> 
-  mutate(mae1 = map(predictions1, ~{
-    .x |> 
-      mutate(error = temp3pm - .prediction) |> 
-      summarize(mae = median(abs(error)),
-                mae_scaled = median(abs(error / sd(.prediction))))
-  })) |> 
-   mutate(mae2 = map(predictions2, ~{
-    .x |> 
-      mutate(error = temp3pm - .prediction) |> 
-      summarize(mae = median(abs(error)),
-                mae_scaled = median(abs(error / sd(.prediction))))
-  })) |> 
-   mutate(mae3 = map(predictions3, ~{
-    .x |> 
-      mutate(error = temp3pm - .prediction) |> 
-      summarize(mae = median(abs(error)),
-                mae_scaled = median(abs(error / sd(.prediction))))
-  }))
+  ) |>
+  mutate(
+    predictions1 = map2(
+      test,
+      model1,
+      ~ {
+        .x |>
+          as_tibble() |>
+          add_predicted_draws(.y) |>
+          ungroup()
+      }
+    )
+  ) |>
+  mutate(
+    predictions2 = map2(
+      test,
+      model2,
+      ~ {
+        .x |>
+          as_tibble() |>
+          add_predicted_draws(.y) |>
+          ungroup()
+      }
+    )
+  ) |>
+  mutate(
+    predictions3 = map2(
+      test,
+      model3,
+      ~ {
+        .x |>
+          as_tibble() |>
+          add_predicted_draws(.y) |>
+          ungroup()
+      }
+    )
+  ) |>
+  mutate(
+    mae1 = map(
+      predictions1,
+      ~ {
+        .x |>
+          mutate(error = temp3pm - .prediction) |>
+          summarize(
+            mae = median(abs(error)),
+            mae_scaled = median(abs(error / sd(.prediction)))
+          )
+      }
+    )
+  ) |>
+  mutate(
+    mae2 = map(
+      predictions2,
+      ~ {
+        .x |>
+          mutate(error = temp3pm - .prediction) |>
+          summarize(
+            mae = median(abs(error)),
+            mae_scaled = median(abs(error / sd(.prediction)))
+          )
+      }
+    )
+  ) |>
+  mutate(
+    mae3 = map(
+      predictions3,
+      ~ {
+        .x |>
+          mutate(error = temp3pm - .prediction) |>
+          summarize(
+            mae = median(abs(error)),
+            mae_scaled = median(abs(error / sd(.prediction)))
+          )
+      }
+    )
+  )
 ```
 
 ```{r}
-res <- cv_weather_WU |> 
-  select(starts_with("mae")) |> 
-  unnest(starts_with("mae"), names_sep = "x") |> 
+res <- cv_weather_WU |>
+  select(starts_with("mae")) |>
+  unnest(starts_with("mae"), names_sep = "x") |>
   summarize(across(everything(), mean))
 
 res
 ```
 
 ```{r}
-res |> 
-  select(ends_with("mae")) |> 
-  pivot_longer(everything()) |> 
+res |>
+  select(ends_with("mae")) |>
+  pivot_longer(everything()) |>
   ggplot() +
   aes(x = value, y = name, fill = name) +
   geom_col() +
-  paletteer::scale_fill_paletteer_d("wesanderson::GrandBudapest1", 
-                                    guide = "none", direction = 1) +
+  paletteer::scale_fill_paletteer_d(
+    "wesanderson::GrandBudapest1",
+    guide = "none",
+    direction = 1
+  ) +
   scale_y_discrete(labels = rev(c("Full", "Location + Temp", "Just Temp"))) +
   labs(y = NULL, x = "MAE (lower is better)") +
   scale_x_continuous(
@@ -1265,7 +1555,7 @@ library(extraDistr)
 set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
 data(equality_index, package = "bayesrules")
 
-equality <- equality_index |> 
+equality <- equality_index |>
   filter(state != "california")
 ```
 
@@ -1273,103 +1563,136 @@ equality <- equality_index |>
 ggplot(equality) +
   aes(x = percent_urban, y = laws) +
   geom_point(aes(fill = historical), pch = 21, size = 4, color = "white") +
-  geom_smooth(aes(color = "Poisson Regression"), se = FALSE, method = "glm",
-              formula = "y ~ x", method.args = list(family = "poisson")) +
-  geom_smooth(aes(color = "Linear Regression"), se = FALSE, method = "lm", 
-                  formula = "y ~ x") +
-  scale_fill_manual(values = c( "mediumblue","red2", "mediumpurple2")) +
+  geom_smooth(
+    aes(color = "Poisson Regression"),
+    se = FALSE,
+    method = "glm",
+    formula = "y ~ x",
+    method.args = list(family = "poisson")
+  ) +
+  geom_smooth(
+    aes(color = "Linear Regression"),
+    se = FALSE,
+    method = "lm",
+    formula = "y ~ x"
+  ) +
+  scale_fill_manual(values = c("mediumblue", "red2", "mediumpurple2")) +
   paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1") +
-  labs(x = "Percent Urban", y = "Number of LGBTQ+ Laws", color = NULL, fill = "Party") +
+  labs(
+    x = "Percent Urban",
+    y = "Number of LGBTQ+ Laws",
+    color = NULL,
+    fill = "Party"
+  ) +
   theme(legend.position = "bottom")
-  
 ```
 
 ```{r}
-priors <- c(prior(normal(2, 0.5), class = Intercept),
-            prior(student_t(2, 0, 1), class = b, coef = "percent_urban"),
-            prior(student_t(2, -0.5, 2), class = b, coef = "historicalgop"),
-            prior(student_t(2, 0, 2), class = b, coef = "historicalswing")
-            )
+priors <- c(
+  prior(normal(2, 0.5), class = Intercept),
+  prior(student_t(2, 0, 1), class = b, coef = "percent_urban"),
+  prior(student_t(2, -0.5, 2), class = b, coef = "historicalgop"),
+  prior(student_t(2, 0, 2), class = b, coef = "historicalswing")
+)
 
 model_equality_prior_brms <- brm(
   bf(laws ~ percent_urban + historical),
-  data = equality, 
+  data = equality,
   family = poisson(),
   prior = priors,
   sample_prior = "only",
-  chains = 4, iter = 4000, seed = 1234, backend = "cmdstanr", refresh = 0
+  chains = 4,
+  iter = 4000,
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0
 )
 ```
 
 ```{r}
-prior_draws_brms <- equality |> 
-  group_by(historical) |> 
-  summarize(min = min(percent_urban),
-            max = max(percent_urban)) |> 
-  mutate(percent_urban = map2(min, max, ~seq(.x, .y, 1))) |> 
-  unnest(percent_urban) |> 
+prior_draws_brms <- equality |>
+  group_by(historical) |>
+  summarize(min = min(percent_urban), max = max(percent_urban)) |>
+  mutate(percent_urban = map2(min, max, ~ seq(.x, .y, 1))) |>
+  unnest(percent_urban) |>
   add_epred_draws(model_equality_prior_brms, ndraws = 100)
 
-prior_draws_brms |> 
+prior_draws_brms |>
   ggplot() +
   aes(x = percent_urban, y = .epred) +
-  geom_line(aes(group = paste(historical, .draw), color = historical), 
-            alpha = .1, linewidth = 0.5) +
+  geom_line(
+    aes(group = paste(historical, .draw), color = historical),
+    alpha = .1,
+    linewidth = 0.5
+  ) +
   coord_cartesian(ylim = c(0, 100)) +
-  scale_color_manual(values = c( "mediumblue","red2", "mediumpurple2")) +
+  scale_color_manual(values = c("mediumblue", "red2", "mediumpurple2")) +
   labs(x = "Percent urban", y = "Predicted number of laws", color = "Party") +
   theme(legend.position = "bottom")
 ```
 
 ```{r}
-priors <- c(prior(normal(2, 0.5), class = Intercept),
-            prior(student_t(2, 0, 1), class = b, coef = "percent_urban"),
-            prior(student_t(2, -0.5, 2), class = b, coef = "historicalgop"),
-            prior(student_t(2, 0, 2), class = b, coef = "historicalswing"))
+priors <- c(
+  prior(normal(2, 0.5), class = Intercept),
+  prior(student_t(2, 0, 1), class = b, coef = "percent_urban"),
+  prior(student_t(2, -0.5, 2), class = b, coef = "historicalgop"),
+  prior(student_t(2, 0, 2), class = b, coef = "historicalswing")
+)
 
 model_equality_brms <- brm(
   bf(laws ~ percent_urban + historical),
   data = equality,
   family = poisson(),
   prior = priors,
-  chains = 4, iter = 4000, seed = 1234, 
-  backend = "cmdstanr", refresh = 0
+  chains = 4,
+  iter = 4000,
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0
 )
 ```
 
 Diagnostics:
 
 ```{r}
-model_equality_brms |> 
-  gather_draws(`^b_.*`, regex = TRUE) |> 
+model_equality_brms |>
+  gather_draws(`^b_.*`, regex = TRUE) |>
   ggplot() +
   aes(x = .iteration, y = .value, color = factor(.chain)) +
   geom_line(linewidth = 0.1) +
-  paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1")+
+  paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1") +
   facet_wrap(~.variable, scales = "free_y")
 ```
 
 We like that it's fuzzy
 
 ```{r}
-model_equality_brms |> 
-  gather_draws(`^b_.*`, regex = TRUE) |> 
-  group_by(.variable) |> 
-  mutate(draw_rank = rank(.value)) |> 
+model_equality_brms |>
+  gather_draws(`^b_.*`, regex = TRUE) |>
+  group_by(.variable) |>
+  mutate(draw_rank = rank(.value)) |>
   ggplot() +
   aes(x = draw_rank, color = factor(.chain)) +
-  stat_bin(geom = "step", binwidth = 250, position = position_identity(), boundary = 0) +
+  stat_bin(
+    geom = "step",
+    binwidth = 250,
+    position = position_identity(),
+    boundary = 0
+  ) +
   paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1") +
   facet_wrap(~.variable, scales = "free_y") +
-  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank(), 
-        axis.title.y = element_blank())
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank()
+  )
 ```
 
 Nice and random.
 
 ```{r}
 pp_check(model_equality_brms, ndraws = 50) +
-  theme(legend.position = "inside", legend.position.inside = c(.9, .8)) 
+  theme(legend.position = "inside", legend.position.inside = c(.9, .8))
 ```
 
 ```{r}
@@ -1377,53 +1700,72 @@ loo(model_equality_brms)
 ```
 
 ```{r}
-model_equality_brms <- add_criterion(model_equality_brms, criterion = c("loo", "waic"))
+model_equality_brms <- add_criterion(
+  model_equality_brms,
+  criterion = c("loo", "waic")
+)
 
 brms_diagnostics <- tibble(
   psis = model_equality_brms$criteria$loo$diagnostics$pareto_k,
-  p_waic = model_equality_brms$criteria$waic$pointwise[ , "p_waic"],
-  state = pull(equality, state) 
-) |> 
+  p_waic = model_equality_brms$criteria$waic$pointwise[, "p_waic"],
+  state = pull(equality, state)
+) |>
   mutate(highlight = (psis > .5 | p_waic > 1))
 
-ggplot(brms_diagnostics) + 
+ggplot(brms_diagnostics) +
   aes(x = psis, y = p_waic) +
   geom_point(aes(color = highlight)) +
-  geom_text_repel(data = filter(brms_diagnostics, highlight), 
-                  aes(label = state), seed = 1234, direction = "y") +
+  geom_text_repel(
+    data = filter(brms_diagnostics, highlight),
+    aes(label = state),
+    seed = 1234,
+    direction = "y"
+  ) +
   geom_vline(xintercept = .5, linetype = "dashed") +
-  paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1", guide = "none") +
+  paletteer::scale_color_paletteer_d(
+    "wesanderson::GrandBudapest1",
+    guide = "none"
+  ) +
   labs(x = "PSIS Pareto k", y = "WAIC penalty")
 ```
 
 ```{r}
-equality |> 
-  add_epred_draws(model_equality_brms, ndraws = 50) |> 
+equality |>
+  add_epred_draws(model_equality_brms, ndraws = 50) |>
   ggplot() +
   aes(x = percent_urban, y = laws, color = historical) +
   geom_point(data = equality, size = 1) +
-  geom_line(aes(y = .epred, group = paste(historical, .draw)),
-            linewidth = .5, alpha = .3) +
-  scale_color_manual(values = c( "mediumblue","red2", "mediumpurple2")) +
+  geom_line(
+    aes(y = .epred, group = paste(historical, .draw)),
+    linewidth = .5,
+    alpha = .3
+  ) +
+  scale_color_manual(values = c("mediumblue", "red2", "mediumpurple2")) +
   labs(x = "Percent Urban", y = "Number of Laws", color = "Party") +
   theme(legend.position = "bottom")
 ```
 
 ```{r}
-plot_slopes(model_equality_brms, 
-         variables = "percent_urban",
-         condition = c("percent_urban", "historical")) +
-  scale_color_manual(values = c( "mediumblue","red2", "mediumpurple2")) +
-  scale_fill_manual(values = c( "mediumblue","red2", "mediumpurple2")) +
-  labs(color = NULL, fill = NULL, x = "Percent urban",
-       y = "Marginal effect \nNumber of Laws") +
+plot_slopes(
+  model_equality_brms,
+  variables = "percent_urban",
+  condition = c("percent_urban", "historical")
+) +
+  scale_color_manual(values = c("mediumblue", "red2", "mediumpurple2")) +
+  scale_fill_manual(values = c("mediumblue", "red2", "mediumpurple2")) +
+  labs(
+    color = NULL,
+    fill = NULL,
+    x = "Percent urban",
+    y = "Marginal effect \nNumber of Laws"
+  ) +
   theme(legend.position = "bottom")
 ```
 
 ```{r}
 data(pulse_of_the_nation, package = "bayesrules")
 
-pulse <- pulse_of_the_nation |> 
+pulse <- pulse_of_the_nation |>
   filter(books < 100)
 ```
 
@@ -1432,22 +1774,26 @@ model_pulse_negbinom <- brm(
   bf(books ~ age + wise_unwise),
   data = pulse,
   family = negbinomial(),
-  chains = 4, iter = 4000, seed = 1234, backend = "cmdstanr", refresh = 0
+  chains = 4,
+  iter = 4000,
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0
 )
 ```
 
 ```{r}
 pp_check(model_pulse_negbinom, ndraws = 50) +
-  theme(legend.position = "inside", legend.position.inside = c(.9, .8)) 
+  theme(legend.position = "inside", legend.position.inside = c(.9, .8))
 ```
 
 ```{r}
-slopes(model_pulse_negbinom, type = "response") |> 
-  get_draws() |> 
-  filter(contrast != "dY/dX") |> 
+slopes(model_pulse_negbinom, type = "response") |>
+  get_draws() |>
+  filter(contrast != "dY/dX") |>
   ggplot() +
   aes(x = draw) +
-  stat_halfeye(fill = paletteer::paletteer_d("wesanderson::GrandBudapest1")[2]) 
+  stat_halfeye(fill = paletteer::paletteer_d("wesanderson::GrandBudapest1")[2])
 ```
 
 On average about 2.6 books more amongst Wise than happy.
@@ -1470,15 +1816,17 @@ data(weather_perth, package = "bayesrules")
 ```
 
 ```{r}
-weather <- weather_perth |> 
+weather <- weather_perth |>
   select(day_of_year, raintomorrow, humidity9am, humidity3pm, raintoday)
 ```
 
 Simulate from priors to see if reasonable
 
 ```{r}
-priors <- c(prior(normal(-1.39, 0.7), class = Intercept),
-            prior(normal(0.07, 0.035), class = b, coef = "humidity9am"))
+priors <- c(
+  prior(normal(-1.39, 0.7), class = Intercept),
+  prior(normal(0.07, 0.035), class = b, coef = "humidity9am")
+)
 
 model_weather_prior_brms <- brm(
   bf(raintomorrow ~ humidity9am),
@@ -1486,23 +1834,31 @@ model_weather_prior_brms <- brm(
   family = bernoulli(link = "logit"),
   prior = priors,
   sample_prior = "only",
-  chains = 4, iter = 4000, seed = 1234, backend = "cmdstanr", refresh = 0
+  chains = 4,
+  iter = 4000,
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0
 )
 ```
 
 ```{r}
-p1 <- tibble(humidity9am = seq(0, 100, by = .1)) |> 
-  add_epred_draws(model_weather_prior_brms, ndraws = 100) |> 
+p1 <- tibble(humidity9am = seq(0, 100, by = .1)) |>
+  add_epred_draws(model_weather_prior_brms, ndraws = 100) |>
   ggplot() +
   aes(x = humidity9am, y = .epred) +
-  geom_line(aes(group = .draw), alpha = 0.5, linewidth = 0.5, 
-            color = "#d65616") +
+  geom_line(
+    aes(group = .draw),
+    alpha = 0.5,
+    linewidth = 0.5,
+    color = "#d65616"
+  ) +
   labs(x = "9am Humidity", y = "Probability of Rain Tomorrow")
 
-p2 <- tibble(humidity9am = seq(0, 100, by = .1)) |> 
-  add_predicted_draws(model_weather_prior_brms, ndraws = 100) |> 
-  ungroup() |> 
-  summarize(proportion_rain = mean(.prediction == 1), .by = .draw) |> 
+p2 <- tibble(humidity9am = seq(0, 100, by = .1)) |>
+  add_predicted_draws(model_weather_prior_brms, ndraws = 100) |>
+  ungroup() |>
+  summarize(proportion_rain = mean(.prediction == 1), .by = .draw) |>
   ggplot() +
   aes(x = proportion_rain) +
   geom_histogram(binwidth = 0.02, color = "white", fill = "#0188ac") +
@@ -1513,31 +1869,47 @@ p1 | p2
 ```
 
 ```{r}
-rain_prob <- weather |> 
-  mutate(humidity_bracket = cut(humidity9am, seq(10, 100, by = 10))) |> 
-  summarize(prop_rain = mean(raintomorrow == "Yes"), 
-            .by = humidity_bracket) |>
-  arrange(humidity_bracket) |> 
+rain_prob <- weather |>
+  mutate(humidity_bracket = cut(humidity9am, seq(10, 100, by = 10))) |>
+  summarize(prop_rain = mean(raintomorrow == "Yes"), .by = humidity_bracket) |>
+  arrange(humidity_bracket) |>
   mutate(mid = seq(15, 95, by = 10))
 
-weather |> 
-  ggplot() + 
+weather |>
+  ggplot() +
   aes(x = humidity9am / 100, y = (raintomorrow == "Yes") |> as.numeric()) +
-  geom_dots(aes(color = raintomorrow, shape = "Data",
-                side = if_else(raintomorrow == "Yes", "bottom", "top")),
-                scale = 0.7, alpha = 0.5) +
-  scale_color_manual(values = c("#fb7185", "#2db25f"), 
-                     name = "Rain Tomorrow", 
-                     guide = guide_legend(override.aes = list(shape = 19))) +
-  scale_shape_manual(values = c(19, 15), name = NULL, 
-                     guide = guide_legend(override.aes = list(linetype = 0)))+
-  geom_point(data = rain_prob, aes(x = mid / 100, y = prop_rain, 
-                                   shape = "Proportion of Rainy Days")) +
+  geom_dots(
+    aes(
+      color = raintomorrow,
+      shape = "Data",
+      side = if_else(raintomorrow == "Yes", "bottom", "top")
+    ),
+    scale = 0.7,
+    alpha = 0.5
+  ) +
+  scale_color_manual(
+    values = c("#fb7185", "#2db25f"),
+    name = "Rain Tomorrow",
+    guide = guide_legend(override.aes = list(shape = 19))
+  ) +
+  scale_shape_manual(
+    values = c(19, 15),
+    name = NULL,
+    guide = guide_legend(override.aes = list(linetype = 0))
+  ) +
+  geom_point(
+    data = rain_prob,
+    aes(x = mid / 100, y = prop_rain, shape = "Proportion of Rainy Days")
+  ) +
   ggnewscale::new_scale_color() +
-  geom_smooth(mapping = aes(color = "Probability of Rain"),
-              method = "glm", 
-              method.args = list(family = binomial(link = "logit")),
-              linewidth = 1, se = FALSE, formula = "y~x") +
+  geom_smooth(
+    mapping = aes(color = "Probability of Rain"),
+    method = "glm",
+    method.args = list(family = binomial(link = "logit")),
+    linewidth = 1,
+    se = FALSE,
+    formula = "y~x"
+  ) +
   scale_color_manual(values = "#002c55", name = NULL) +
   scale_x_continuous(labels = scales::label_percent()) +
   scale_y_continuous(labels = scales::label_percent()) +
@@ -1550,15 +1922,19 @@ model_weather_brms <- brm(
   data = weather,
   family = bernoulli(link = "logit"),
   prior = priors,
-  chains = 4, iter = 4000, seed = 1234, backend = "cmdstanr", refresh = 0
+  chains = 4,
+  iter = 4000,
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0
 )
 ```
 
 Diagnostics
 
 ```{r}
-model_weather_brms |> 
-  gather_draws(`^b_.*`, regex = TRUE) |> 
+model_weather_brms |>
+  gather_draws(`^b_.*`, regex = TRUE) |>
   ggplot() +
   aes(x = .iteration, y = .value, color = factor(.chain)) +
   geom_line(linewidth = 0.1) +
@@ -1567,18 +1943,25 @@ model_weather_brms |>
 ```
 
 ```{r}
-model_weather_brms |> 
-  gather_draws(`^b_.*`, regex = TRUE) |> 
-  group_by(.variable) |> 
-  mutate(draw_rank = rank(.value)) |> 
+model_weather_brms |>
+  gather_draws(`^b_.*`, regex = TRUE) |>
+  group_by(.variable) |>
+  mutate(draw_rank = rank(.value)) |>
   ggplot() +
   aes(x = draw_rank, color = factor(.chain)) +
-  stat_bin(geom = "step", binwidth = 250, position = position_identity(),
-           boundary = 0) +
+  stat_bin(
+    geom = "step",
+    binwidth = 250,
+    position = position_identity(),
+    boundary = 0
+  ) +
   paletteer::scale_color_paletteer_d("wesanderson::GrandBudapest1") +
   facet_wrap(~.variable, scales = "free_y") +
-  theme(axis.text.y = element_blank(), axis.title.y = element_blank(), 
-        axis.ticks.y = element_blank())
+  theme(
+    axis.text.y = element_blank(),
+    axis.title.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
 ```
 
 ```{r}
@@ -1591,13 +1974,12 @@ loo(model_weather_brms)
 ```
 
 ```{r}
-prediction_brms <- model_weather_brms |> 
+prediction_brms <- model_weather_brms |>
   predicted_draws(newdata = tibble(humidity9am = 99))
 
-prediction_brms |> 
-  count(.prediction) |> 
-  mutate(prop = n / sum(n), 
-         prop_nice = scales::percent(prop, accuracy = .1)) |> 
+prediction_brms |>
+  count(.prediction) |>
+  mutate(prop = n / sum(n), prop_nice = scales::percent(prop, accuracy = .1)) |>
   ggplot() +
   aes(x = factor(.prediction), y = n) +
   geom_col(aes(fill = factor(.prediction))) +
@@ -1615,70 +1997,98 @@ pp_check(model_weather_brms, ndraws = 100, type = "stat", bins = 30) +
 ```
 
 ```{r}
-prediction_brms_all <- weather |> 
+prediction_brms_all <- weather |>
   add_predicted_draws(model_weather_brms)
 
-rain_classifications <- prediction_brms_all |> 
-  group_by(.row) |> 
-  summarize(rain_prob_that_day = mean(.prediction),
-            raintomorrow_actual = raintomorrow[1]) |> 
+rain_classifications <- prediction_brms_all |>
+  group_by(.row) |>
+  summarize(
+    rain_prob_that_day = mean(.prediction),
+    raintomorrow_actual = raintomorrow[1]
+  ) |>
   mutate(raintomorrow_pred = rain_prob_that_day >= .5)
 ```
 
 ```{r}
-rain_classifications |> 
-  janitor::tabyl(raintomorrow_actual, raintomorrow_pred) |> 
+rain_classifications |>
+  janitor::tabyl(raintomorrow_actual, raintomorrow_pred) |>
   janitor::adorn_totals(c("row", "col"))
 ```
 
 ```{r}
-priors <- c(prior(normal(-1.39, 0.7), class = Intercept),
-            prior(normal(0, 0.14), class = b, coef = "humidity9am"),
-            prior(normal(0, 0.15), class = b, coef = "humidity3pm"),
-            prior(normal(0, 6.45), class = b, coef = "raintodayYes")
-            )
+priors <- c(
+  prior(normal(-1.39, 0.7), class = Intercept),
+  prior(normal(0, 0.14), class = b, coef = "humidity9am"),
+  prior(normal(0, 0.15), class = b, coef = "humidity3pm"),
+  prior(normal(0, 6.45), class = b, coef = "raintodayYes")
+)
 
 model_weather_full_brms <- brm(
   bf(raintomorrow ~ humidity9am + humidity3pm + raintoday),
-  data = weather, family = bernoulli(link = "logit"),
-  prior = priors, chains = 4, iter = 4000, seed = 1234, backend = "cmdstanr",
+  data = weather,
+  family = bernoulli(link = "logit"),
+  prior = priors,
+  chains = 4,
+  iter = 4000,
+  seed = 1234,
+  backend = "cmdstanr",
   refresh = 0
 )
 ```
 
 ```{r}
-expand_grid(humidity9am = mean(weather$humidity9am),
-            humidity3pm = seq(min(weather$humidity3pm), 
-                              max(weather$humidity3pm), length.out = 100),
-            raintoday = c("No", "Yes")) |> 
-  add_epred_draws(model_weather_full_brms) |> 
+expand_grid(
+  humidity9am = mean(weather$humidity9am),
+  humidity3pm = seq(
+    min(weather$humidity3pm),
+    max(weather$humidity3pm),
+    length.out = 100
+  ),
+  raintoday = c("No", "Yes")
+) |>
+  add_epred_draws(model_weather_full_brms) |>
   ggplot() +
   aes(x = humidity3pm, y = .epred, color = raintoday) +
-  geom_dots(data = weather, aes(
-    y = (raintomorrow == "Yes") |> as.numeric(),
-    side = if_else(raintomorrow == "Yes", "bottom", "top")),
-    pch = 19, color = "grey70", scale = 0.65, alpha = 0.75) +
+  geom_dots(
+    data = weather,
+    aes(
+      y = (raintomorrow == "Yes") |> as.numeric(),
+      side = if_else(raintomorrow == "Yes", "bottom", "top")
+    ),
+    pch = 19,
+    color = "grey70",
+    scale = 0.65,
+    alpha = 0.75
+  ) +
   stat_lineribbon(aes(fill = raintoday), alpha = 0.35) +
   scale_color_manual(values = c("#fb7185", "#2db25f")) +
   scale_fill_manual(values = c("#fb7185", "#2db25f")) +
-  labs(x = "3pm Humidity", y = "Posterior Probability of Rain",
-       color = "Rain Today", fill = "Rain Today") +
+  labs(
+    x = "3pm Humidity",
+    y = "Posterior Probability of Rain",
+    color = "Rain Today",
+    fill = "Rain Today"
+  ) +
   scale_y_continuous(labels = scales::label_percent()) +
   theme(legend.position = "bottom")
 ```
 
 ```{r}
-prediction_full <- model_weather_full_brms |> 
-  predicted_draws(newdata = expand_grid(
-    humidity9am = mean(weather$humidity9am),
-    humidity3pm = 99,
-    raintoday = c("No", "Yes")
-  ))
+prediction_full <- model_weather_full_brms |>
+  predicted_draws(
+    newdata = expand_grid(
+      humidity9am = mean(weather$humidity9am),
+      humidity3pm = 99,
+      raintoday = c("No", "Yes")
+    )
+  )
 
-prediction_full |> 
-  count(.prediction, raintoday) |> 
-  mutate(prop = n / sum(n), prop_nice = 
-           scales::percent(prop, accuracy = 0.1)) |> 
+prediction_full |>
+  count(.prediction, raintoday) |>
+  mutate(
+    prop = n / sum(n),
+    prop_nice = scales::percent(prop, accuracy = 0.1)
+  ) |>
   ggplot() +
   aes(x = factor(.prediction), y = n) +
   geom_col(aes(fill = factor(.prediction))) +
@@ -1692,22 +2102,24 @@ pp_check(model_weather_full_brms, ndraws = 100, type = "bars")
 ```
 
 ```{r}
-pp_check(model_weather_full_brms, ndraws = 500, type = "stat", bins = 30) + 
+pp_check(model_weather_full_brms, ndraws = 500, type = "stat", bins = 30) +
   labs(x = "Probability of Rain")
 ```
 
 ```{r}
-prediction_brms_full_all <- weather |> 
+prediction_brms_full_all <- weather |>
   add_predicted_draws(model_weather_full_brms)
 
-rain_classifications_full <- prediction_brms_full_all |> 
-  group_by(.row) |> 
-  summarize(rain_prob_that_day = mean(.prediction),
-            raintomorrow_actual = raintomorrow[1]) |> 
+rain_classifications_full <- prediction_brms_full_all |>
+  group_by(.row) |>
+  summarize(
+    rain_prob_that_day = mean(.prediction),
+    raintomorrow_actual = raintomorrow[1]
+  ) |>
   mutate(raintomorrow_pred = rain_prob_that_day >= .5)
 
-rain_classifications_full |> 
-  janitor::tabyl(raintomorrow_actual, raintomorrow_pred) |> 
+rain_classifications_full |>
+  janitor::tabyl(raintomorrow_actual, raintomorrow_pred) |>
   janitor::adorn_totals(c("row", "col"))
 ```
 
