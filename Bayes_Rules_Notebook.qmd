@@ -2129,3 +2129,181 @@ loo_compare(
   loo(model_weather_full_brms)
 )
 ```
+
+## Chapter 14: Naive Bayes Classifier
+
+```{r}
+library(bayesrules)
+library(tidyverse)
+
+data(penguins_bayes)
+```
+
+```{r}
+penguins_bayes |> 
+  count(species)
+```
+
+```{r}
+naive_model_1 <- e1071::naiveBayes(species ~ bill_length_mm, 
+                                   data = penguins_bayes)
+
+naive_model_2 <- e1071::naiveBayes(species ~ bill_length_mm + 
+                                     flipper_length_mm, 
+                                   data = penguins_bayes)
+```
+
+```{r}
+predict(naive_model_1, newdata = tibble(bill_length_mm = 50,
+                                        flipper_length_mm = 195),
+        type = "raw")
+```
+
+```{r}
+predict(naive_model_2, newdata = tibble(bill_length_mm = 50,
+                                        flipper_length_mm = 195),
+        type = "raw")
+```
+
+Typically avoid naive bayes because assumes predictors are independent and all quantitative predictors are normally distributed.
+
+## Chapter 15: Hierarchical Models are Exciting
+
+```{r}
+library(bayesrules)
+library(tidyverse)
+library(brms)
+library(cmdstanr)
+library(broom)
+library(broom.mixed)
+library(tidybayes)
+
+set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
+data("cherry_blossom_sample")
+
+running <- cherry_blossom_sample |> 
+  mutate(runner_nice = str_glue("Runner {runner}"))
+```
+
+```{r}
+running |> 
+  drop_na(net) |> 
+  ggplot() +
+  aes(x = runner, y = net) +
+  geom_boxplot() +
+  labs(x = "Runner #", y = "Finish Time")
+```
+
+```{r}
+running |> 
+  drop_na(net) |> 
+  ggplot() +
+  aes(x = age, y = net) +
+  geom_point(alpha = .6) +
+  geom_smooth(method = "lm", se = FALSE, color = "#0188ac", formula = "y~x") +
+  scale_x_continuous(breaks = c(50, 55, 60, 65))
+```
+
+```{r}
+priors <- c(prior(normal(0, 35), class = Intercept),
+            prior(normal(0, 2.5), class = b),
+            prior(exponential(0.1), class = sigma))
+
+model_complete_pooling <- brm(
+  bf(net ~ age),
+  data = running,
+  family = gaussian(),
+  prior = priors,
+  chains = 4, cores = 4, iter = 4000, seed = 1234, backend = "cmdstanr",
+  file = "15_manual_cache/complete_pooling_brms",
+  silent = 2, refresh = 0)
+```
+
+```{r}
+tidy(model_complete_pooling, effects = "fixed", conf.level = 0.8)
+```
+
+Since the 80% credible interval contains 0, we can't feel confident that age is impactful.
+
+```{r}
+model_complete_pooling |> 
+  add_epred_draws(newdata = tibble(age = seq(min(running$age),
+                                             max(running$age),
+                                             length.out = 100))) |> 
+  ggplot() + 
+  aes(x = age, y = .epred) + 
+  geom_smooth(data = running |> 
+                drop_na(net), 
+              aes(y = net, group = runner), method = "lm",
+              se = FALSE, formula = "y~x", color = "grey60", linewidth = .5) +
+  stat_lineribbon(alpha = .25, fill = "#2db25f", color = "#2db25f") +
+  labs(x = "Age", y = "Finish Time")
+```
+
+This doesn't look like it's really appreciating the data.
+
+```{r}
+no_pooling <- tibble(runner = levels(running$runner)) |> 
+  mutate(data = map(runner, ~filter(running, runner == .x))) |> 
+  mutate(model = map(data, ~update(model_complete_pooling, newdata = .x))) |> 
+  SimDesign::quiet()
+```
+
+```{r}
+no_pooling_results <- no_pooling |> 
+  mutate(tidied = map(model, ~tidy(., effects = "fixed"))) |> 
+  select(-c(data, model)) |> 
+  unnest(tidied) |> 
+  filter(term %in% c("(Intercept)", "age")) |> 
+  select(runner, term , estimate) |> 
+  pivot_wider(names_from = "term", values_from = "estimate") |> 
+  rename(beta0 = `(Intercept)`, beta1 = "age")
+```
+
+So now we have separate preds for each runner.
+
+Partial pooling / Hierarchical models (happy inbetween!)
+
+```{r}
+priors <- c(prior(normal(0, 35), class = Intercept),
+            prior(normal(0, 2.5), class = b), 
+            prior(exponential(0.1), class = sigma),
+            prior(student_t(3, 0, 15), class = sd, lb = 0))
+
+model_partial_pooling <- brm(
+  bf(net ~ age + (1 + age | runner)),
+  data = running,
+  family = gaussian(),
+  prior = priors,
+  chains = 4, cores = 4, iter = 8000, threads = threading(2), seed = 1234,
+  backend = "cmdstanr", refresh = 0, file = "15_manual_cache/partial_pooling"
+)
+```
+
+```{r}
+tidy(model_partial_pooling)
+```
+
+```{r}
+#| fig-width: 8
+#| fig-height: 12
+runner_ages <- running |> 
+  group_by(runner) |> 
+  summarize(age_min = min(age), age_max = max(age)) |> 
+  mutate(age_range = map2(age_min, age_max, ~tibble(age = seq(.x, .y, length.out = 100)))) |> 
+  select(runner, age_range)
+
+model_partial_pooling |> 
+  epred_draws(newdata = unnest(runner_ages, age_range),
+              ndraws = 100, re_formula = NULL) |> 
+  ggplot() +
+  aes(x = age, y = .epred) +
+  geom_line(aes(group = paste(runner, .draw)), linewidth = .1,
+            color = "#940034", alpha = .5) +
+  geom_point(data = running |> 
+               drop_na(net), aes(y = net), size = .75, color = "#0188ac",
+             alpha = .8) +
+  labs(x = "Age", y = "Finish Time") +
+  facet_wrap(~runner, ncol = 4, labeller = as_labeller(
+    \(x) str_glue("Runner {x}")))
+```
