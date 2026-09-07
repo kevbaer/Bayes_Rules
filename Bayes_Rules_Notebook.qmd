@@ -2140,29 +2140,37 @@ data(penguins_bayes)
 ```
 
 ```{r}
-penguins_bayes |> 
+penguins_bayes |>
   count(species)
 ```
 
 ```{r}
-naive_model_1 <- e1071::naiveBayes(species ~ bill_length_mm, 
-                                   data = penguins_bayes)
+naive_model_1 <- e1071::naiveBayes(
+  species ~ bill_length_mm,
+  data = penguins_bayes
+)
 
-naive_model_2 <- e1071::naiveBayes(species ~ bill_length_mm + 
-                                     flipper_length_mm, 
-                                   data = penguins_bayes)
+naive_model_2 <- e1071::naiveBayes(
+  species ~ bill_length_mm +
+    flipper_length_mm,
+  data = penguins_bayes
+)
 ```
 
 ```{r}
-predict(naive_model_1, newdata = tibble(bill_length_mm = 50,
-                                        flipper_length_mm = 195),
-        type = "raw")
+predict(
+  naive_model_1,
+  newdata = tibble(bill_length_mm = 50, flipper_length_mm = 195),
+  type = "raw"
+)
 ```
 
 ```{r}
-predict(naive_model_2, newdata = tibble(bill_length_mm = 50,
-                                        flipper_length_mm = 195),
-        type = "raw")
+predict(
+  naive_model_2,
+  newdata = tibble(bill_length_mm = 50, flipper_length_mm = 195),
+  type = "raw"
+)
 ```
 
 Typically avoid naive bayes because assumes predictors are independent and all quantitative predictors are normally distributed.
@@ -2181,13 +2189,13 @@ library(tidybayes)
 set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
 data("cherry_blossom_sample")
 
-running <- cherry_blossom_sample |> 
+running <- cherry_blossom_sample |>
   mutate(runner_nice = str_glue("Runner {runner}"))
 ```
 
 ```{r}
-running |> 
-  drop_na(net) |> 
+running |>
+  drop_na(net) |>
   ggplot() +
   aes(x = runner, y = net) +
   geom_boxplot() +
@@ -2195,8 +2203,8 @@ running |>
 ```
 
 ```{r}
-running |> 
-  drop_na(net) |> 
+running |>
+  drop_na(net) |>
   ggplot() +
   aes(x = age, y = net) +
   geom_point(alpha = .6) +
@@ -2205,18 +2213,26 @@ running |>
 ```
 
 ```{r}
-priors <- c(prior(normal(0, 35), class = Intercept),
-            prior(normal(0, 2.5), class = b),
-            prior(exponential(0.1), class = sigma))
+priors <- c(
+  prior(normal(0, 35), class = Intercept),
+  prior(normal(0, 2.5), class = b),
+  prior(exponential(0.1), class = sigma)
+)
 
 model_complete_pooling <- brm(
   bf(net ~ age),
   data = running,
   family = gaussian(),
   prior = priors,
-  chains = 4, cores = 4, iter = 4000, seed = 1234, backend = "cmdstanr",
+  chains = 4,
+  cores = 4,
+  iter = 4000,
+  seed = 1234,
+  backend = "cmdstanr",
   file = "15_manual_cache/complete_pooling_brms",
-  silent = 2, refresh = 0)
+  silent = 2,
+  refresh = 0
+)
 ```
 
 ```{r}
@@ -2226,16 +2242,24 @@ tidy(model_complete_pooling, effects = "fixed", conf.level = 0.8)
 Since the 80% credible interval contains 0, we can't feel confident that age is impactful.
 
 ```{r}
-model_complete_pooling |> 
-  add_epred_draws(newdata = tibble(age = seq(min(running$age),
-                                             max(running$age),
-                                             length.out = 100))) |> 
-  ggplot() + 
-  aes(x = age, y = .epred) + 
-  geom_smooth(data = running |> 
-                drop_na(net), 
-              aes(y = net, group = runner), method = "lm",
-              se = FALSE, formula = "y~x", color = "grey60", linewidth = .5) +
+model_complete_pooling |>
+  add_epred_draws(
+    newdata = tibble(
+      age = seq(min(running$age), max(running$age), length.out = 100)
+    )
+  ) |>
+  ggplot() +
+  aes(x = age, y = .epred) +
+  geom_smooth(
+    data = running |>
+      drop_na(net),
+    aes(y = net, group = runner),
+    method = "lm",
+    se = FALSE,
+    formula = "y~x",
+    color = "grey60",
+    linewidth = .5
+  ) +
   stat_lineribbon(alpha = .25, fill = "#2db25f", color = "#2db25f") +
   labs(x = "Age", y = "Finish Time")
 ```
@@ -2243,20 +2267,20 @@ model_complete_pooling |>
 This doesn't look like it's really appreciating the data.
 
 ```{r}
-no_pooling <- tibble(runner = levels(running$runner)) |> 
-  mutate(data = map(runner, ~filter(running, runner == .x))) |> 
-  mutate(model = map(data, ~update(model_complete_pooling, newdata = .x))) |> 
+no_pooling <- tibble(runner = levels(running$runner)) |>
+  mutate(data = map(runner, ~ filter(running, runner == .x))) |>
+  mutate(model = map(data, ~ update(model_complete_pooling, newdata = .x))) |>
   SimDesign::quiet()
 ```
 
 ```{r}
-no_pooling_results <- no_pooling |> 
-  mutate(tidied = map(model, ~tidy(., effects = "fixed"))) |> 
-  select(-c(data, model)) |> 
-  unnest(tidied) |> 
-  filter(term %in% c("(Intercept)", "age")) |> 
-  select(runner, term , estimate) |> 
-  pivot_wider(names_from = "term", values_from = "estimate") |> 
+no_pooling_results <- no_pooling |>
+  mutate(tidied = map(model, ~ tidy(., effects = "fixed"))) |>
+  select(-c(data, model)) |>
+  unnest(tidied) |>
+  filter(term %in% c("(Intercept)", "age")) |>
+  select(runner, term, estimate) |>
+  pivot_wider(names_from = "term", values_from = "estimate") |>
   rename(beta0 = `(Intercept)`, beta1 = "age")
 ```
 
@@ -2265,18 +2289,26 @@ So now we have separate preds for each runner.
 Partial pooling / Hierarchical models (happy inbetween!)
 
 ```{r}
-priors <- c(prior(normal(0, 35), class = Intercept),
-            prior(normal(0, 2.5), class = b), 
-            prior(exponential(0.1), class = sigma),
-            prior(student_t(3, 0, 15), class = sd, lb = 0))
+priors <- c(
+  prior(normal(0, 35), class = Intercept),
+  prior(normal(0, 2.5), class = b),
+  prior(exponential(0.1), class = sigma),
+  prior(student_t(3, 0, 15), class = sd, lb = 0)
+)
 
 model_partial_pooling <- brm(
   bf(net ~ age + (1 + age | runner)),
   data = running,
   family = gaussian(),
   prior = priors,
-  chains = 4, cores = 4, iter = 8000, threads = threading(2), seed = 1234,
-  backend = "cmdstanr", refresh = 0, file = "15_manual_cache/partial_pooling"
+  chains = 4,
+  cores = 4,
+  iter = 8000,
+  threads = threading(2),
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0,
+  file = "15_manual_cache/partial_pooling"
 )
 ```
 
@@ -2288,25 +2320,49 @@ tidy(model_partial_pooling)
 #| fig-width: 8
 #| fig-height: 12
 #| fig-dpi: 300
-runner_ages <- running |> 
-  group_by(runner) |> 
-  summarize(age_min = min(age), age_max = max(age)) |> 
-  mutate(age_range = map2(age_min, age_max, ~tibble(age = seq(.x, .y, length.out = 100)))) |> 
+
+runner_ages <- running |>
+  group_by(runner) |>
+  summarize(age_min = min(age), age_max = max(age)) |>
+  mutate(
+    age_range = map2(
+      age_min,
+      age_max,
+      ~ tibble(age = seq(.x, .y, length.out = 100))
+    )
+  ) |>
   select(runner, age_range)
 
-model_partial_pooling |> 
-  epred_draws(newdata = unnest(runner_ages, age_range),
-              ndraws = 100, re_formula = NULL) |> 
+model_partial_pooling |>
+  epred_draws(
+    newdata = unnest(runner_ages, age_range),
+    ndraws = 100,
+    re_formula = NULL
+  ) |>
   ggplot() +
   aes(x = age, y = .epred) +
-  geom_line(aes(group = paste(runner, .draw)), linewidth = .1,
-            color = "#940034", alpha = .5) +
-  geom_point(data = running |> 
-               drop_na(net), aes(y = net), size = .75, color = "#0188ac",
-             alpha = .8) +
+  geom_line(
+    aes(group = paste(runner, .draw)),
+    linewidth = .1,
+    color = "#940034",
+    alpha = .5
+  ) +
+  geom_point(
+    data = running |>
+      drop_na(net),
+    aes(y = net),
+    size = .75,
+    color = "#0188ac",
+    alpha = .8
+  ) +
   labs(x = "Age", y = "Finish Time") +
-  facet_wrap(~runner, ncol = 4, labeller = as_labeller(
-    \(x) str_glue("Runner {x}")))
+  facet_wrap(
+    ~runner,
+    ncol = 4,
+    labeller = as_labeller(
+      \(x) str_glue("Runner {x}")
+    )
+  )
 ```
 
 ## Chapter 16: Normal Hierarchical Models Without Predictors
@@ -2323,13 +2379,13 @@ set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
 ```{r}
 data(spotify, package = "bayesrules")
 
-spotify <- spotify |> 
-  select(artist, title, popularity) |> 
+spotify <- spotify |>
+  select(artist, title, popularity) |>
   mutate(artist = fct_reorder(artist, popularity, .fun = mean))
 ```
 
 ```{r}
-spotify |> 
+spotify |>
   summarize(n_songs = n(), n_artists = n_distinct(artist))
 ```
 
@@ -2341,8 +2397,9 @@ spotify |> count(artist, sort = TRUE)
 #| fig-height: 10
 #| fig-width: 8
 #| fig-dpi: 300
-spotify |> 
-  ggplot() + 
+
+spotify |>
+  ggplot() +
   aes(x = popularity, y = artist) +
   geom_point(color = "grey70", size = .75) +
   stat_pointinterval(color = "#d65616", point_interval = "mean_qi") +
@@ -2350,7 +2407,7 @@ spotify |>
 ```
 
 ```{r}
-spotify |> 
+spotify |>
   ggplot() +
   aes(x = popularity) +
   geom_density(fill = "#940034", color = NA) +
@@ -2371,14 +2428,19 @@ model_pooled <- brm(
   data = spotify,
   family = gaussian(),
   prior = priors,
-  chains = 4, cores = 4, iter = 4000, seed = 1234, backend = "cmdstanr",
-  refresh = 0, file = "16_manual_cache/model_pooled"
+  chains = 4,
+  cores = 4,
+  iter = 4000,
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0,
+  file = "16_manual_cache/model_pooled"
 )
 ```
 
 ```{r}
-model_pooled |> 
-  tidy(effects = c("fixed", "ran_pars"), conf.level = 0.8) |> 
+model_pooled |>
+  tidy(effects = c("fixed", "ran_pars"), conf.level = 0.8) |>
   select(-c(component, group))
 ```
 
@@ -2386,16 +2448,24 @@ model_pooled |>
 #| fig-height: 10
 #| fig-width: 8
 #| fig-dpi: 300
-pooled_predictions <- spotify |> 
-  summarize(popularity = mean(popularity), .by = artist) |> 
+
+pooled_predictions <- spotify |>
+  summarize(popularity = mean(popularity), .by = artist) |>
   add_predicted_draws(model_pooled)
 
-pooled_predictions |> 
+pooled_predictions |>
   ggplot() +
   aes(x = .prediction, y = artist) +
   stat_pointinterval(color = "#2db25f", point_interval = "mean_qi") +
-  stat_summary(data = spotify, aes(x = popularity), geom = "point",
-               fun = mean, color = "#d65616", size = 3, pch = 18) +
+  stat_summary(
+    data = spotify,
+    aes(x = popularity),
+    geom = "point",
+    fun = mean,
+    color = "#d65616",
+    size = 3,
+    pch = 18
+  ) +
   labs(x = "Popularity", y = NULL)
 ```
 
@@ -2410,15 +2480,20 @@ model_no_pooled <- brm(
   data = spotify,
   family = "gaussian",
   prior = priors,
-  chains = 4, cores = 4, seed = 1234, iter = 4000, backend = "cmdstanr",
-  refresh = 0, file = "16_manual_cache/model_no_pooled.rds"
+  chains = 4,
+  cores = 4,
+  seed = 1234,
+  iter = 4000,
+  backend = "cmdstanr",
+  refresh = 0,
+  file = "16_manual_cache/model_no_pooled.rds"
 )
 ```
 
 ```{r}
-model_no_pooled |> 
-  tidy(effects = c("fixed", "ran_pars"), conf.level = 0.8) |> 
-  slice(1:3, .by = effect) |> 
+model_no_pooled |>
+  tidy(effects = c("fixed", "ran_pars"), conf.level = 0.8) |>
+  slice(1:3, .by = effect) |>
   select(-c(component, group))
 ```
 
@@ -2426,16 +2501,24 @@ model_no_pooled |>
 #| fig-width: 8
 #| fig-height: 10
 #| fig-dpi: 300
-no_pooled_prediction <- spotify |> 
-  summarize(popularity = mean(popularity), .by = artist) |> 
+
+no_pooled_prediction <- spotify |>
+  summarize(popularity = mean(popularity), .by = artist) |>
   add_predicted_draws(model_no_pooled)
 
-no_pooled_prediction |> 
+no_pooled_prediction |>
   ggplot() +
   aes(x = .prediction, y = artist) +
   stat_pointinterval(color = "#2db25f", point_interval = "mean_qi") +
-  stat_summary(data = spotify, color = "#d65616", geom = "point",
-               aes(x = popularity), fun = mean, size = 3, pch = 18) +
+  stat_summary(
+    data = spotify,
+    color = "#d65616",
+    geom = "point",
+    aes(x = popularity),
+    fun = mean,
+    size = 3,
+    pch = 18
+  ) +
   labs(x = "Popularity", y = NULL)
 ```
 
@@ -2448,29 +2531,36 @@ priors <- c(
 
 model_multilevel <- brm(
   bf(popularity ~ (1 | artist)),
-  data = spotify, family = "gaussian", prior = priors,
-  cores = 4, iter = 4000, chains = 4, seed = 1234, backend = "cmdstanr",
-  refresh = 0, file = "16_manual_cache/model_multilevel.rds"
+  data = spotify,
+  family = "gaussian",
+  prior = priors,
+  cores = 4,
+  iter = 4000,
+  chains = 4,
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0,
+  file = "16_manual_cache/model_multilevel.rds"
 )
 ```
 
 ```{r}
-model_multilevel |> 
-  tidy(effects = c("fixed", "ran_pars"), conf.level = 0.8) |> 
+model_multilevel |>
+  tidy(effects = c("fixed", "ran_pars"), conf.level = 0.8) |>
   select(-component)
 ```
 
 ```{r}
-m_mlm <- model_multilevel |> 
-  tidy(effects = c("fixed", "ran_pars"), conf.level = 0.8) |> 
-  mutate(term = janitor::make_clean_names(term)) |> 
+m_mlm <- model_multilevel |>
+  tidy(effects = c("fixed", "ran_pars"), conf.level = 0.8) |>
+  mutate(term = janitor::make_clean_names(term)) |>
   split(~term)
 ```
 
 ```{r}
-model_multilevel |> 
-  tidy(effects = "ran_vals", conf.level = .8) |> 
-  filter(level == "Beyoncé") |> 
+model_multilevel |>
+  tidy(effects = "ran_vals", conf.level = .8) |>
+  filter(level == "Beyoncé") |>
   select(-c(effect, component))
 ```
 
@@ -2478,11 +2568,12 @@ model_multilevel |>
 #| fig-width: 8
 #| fig-height: 10
 #| fig-dpi: 300
-model_multilevel |> 
-  spread_draws(b_Intercept, r_artist[artist,]) |> 
-  mutate(mu_j = b_Intercept + r_artist) |> 
-  ungroup() |> 
-  mutate(artist = fct_reorder(artist, mu_j, .fun = mean)) |> 
+
+model_multilevel |>
+  spread_draws(b_Intercept, r_artist[artist, ]) |>
+  mutate(mu_j = b_Intercept + r_artist) |>
+  ungroup() |>
+  mutate(artist = fct_reorder(artist, mu_j, .fun = mean)) |>
   ggplot() +
   aes(x = mu_j, y = artist) +
   stat_pointinterval(color = "#d65616") +
@@ -2490,8 +2581,8 @@ model_multilevel |>
 ```
 
 ```{r}
-model_multilevel |> 
-  predicted_draws(newdata = tibble(artist = "Frank Ocean")) |> 
+model_multilevel |>
+  predicted_draws(newdata = tibble(artist = "Frank Ocean")) |>
   ggplot() +
   aes(x = .prediction) +
   stat_halfeye(fill = "#fb7185") +
@@ -2499,8 +2590,8 @@ model_multilevel |>
 ```
 
 ```{r}
-model_multilevel |> 
-  linpred_draws(newdata = tibble(artist = "Frank Ocean")) |> 
+model_multilevel |>
+  linpred_draws(newdata = tibble(artist = "Frank Ocean")) |>
   ggplot() +
   aes(x = .linpred) +
   stat_halfeye(fill = "#adb4f4") +
@@ -2508,10 +2599,13 @@ model_multilevel |>
 ```
 
 ```{r}
-model_multilevel |> 
-  predicted_draws(newdata = tibble(artist = "Mohsen Beats"), 
-                  re_formula = NULL, allow_new_levels = TRUE, 
-                  sample_new_levels = "gaussian") |> 
+model_multilevel |>
+  predicted_draws(
+    newdata = tibble(artist = "Mohsen Beats"),
+    re_formula = NULL,
+    allow_new_levels = TRUE,
+    sample_new_levels = "gaussian"
+  ) |>
   ggplot() +
   aes(x = .prediction) +
   stat_halfeye(fill = "#b2e3ff") +
@@ -2519,10 +2613,13 @@ model_multilevel |>
 ```
 
 ```{r}
-model_multilevel |> 
-  linpred_draws(newdata = tibble(artist = "Mohsen Beats"), 
-                  re_formula = NULL, allow_new_levels = TRUE, 
-                  sample_new_levels = "gaussian") |> 
+model_multilevel |>
+  linpred_draws(
+    newdata = tibble(artist = "Mohsen Beats"),
+    re_formula = NULL,
+    allow_new_levels = TRUE,
+    sample_new_levels = "gaussian"
+  ) |>
   ggplot() +
   aes(x = .linpred) +
   stat_halfeye(fill = "#002c55") +
@@ -2533,22 +2630,29 @@ model_multilevel |>
 #| fig-width: 10
 #| fig-height: 8
 #| fig-dpi: 300
-p1 <- model_multilevel |> 
-  predicted_draws(newdata = tibble(artist = c("Frank Ocean", "Mohsen Beats")),
-                  re_formula = NULL, allow_new_levels = TRUE,
-                  sample_new_levels = "gaussian") |> 
+
+p1 <- model_multilevel |>
+  predicted_draws(
+    newdata = tibble(artist = c("Frank Ocean", "Mohsen Beats")),
+    re_formula = NULL,
+    allow_new_levels = TRUE,
+    sample_new_levels = "gaussian"
+  ) |>
   ggplot() +
-  aes(x = .prediction, y = artist, fill = artist) + 
+  aes(x = .prediction, y = artist, fill = artist) +
   stat_halfeye() +
   scale_fill_manual(values = c("#940034", "#2db25f"), guide = "none") +
   labs(x = "Posterior for Individual Songs", y = NULL)
 
-p2 <- model_multilevel |> 
-  linpred_draws(newdata = tibble(artist = c("Frank Ocean", "Mohsen Beats")),
-                  re_formula = NULL, allow_new_levels = TRUE,
-                  sample_new_levels = "gaussian") |> 
+p2 <- model_multilevel |>
+  linpred_draws(
+    newdata = tibble(artist = c("Frank Ocean", "Mohsen Beats")),
+    re_formula = NULL,
+    allow_new_levels = TRUE,
+    sample_new_levels = "gaussian"
+  ) |>
   ggplot() +
-  aes(x = .linpred, y = artist, fill = artist) + 
+  aes(x = .linpred, y = artist, fill = artist) +
   stat_halfeye() +
   scale_fill_manual(values = c("#940034", "#2db25f"), guide = "none") +
   labs(x = "Posterior for Average of All Songs", y = NULL) +
@@ -2561,14 +2665,441 @@ p1 | p2
 #| fig-width: 8
 #| fig-height: 10
 #| fig-dpi: 300
-multilevel_predictions <- model_multilevel |> 
+
+multilevel_predictions <- model_multilevel |>
   predicted_draws(newdata = tibble(artist = spotify$artist |> unique()))
 
-multilevel_predictions |> 
+multilevel_predictions |>
   ggplot() +
   aes(x = .prediction, y = artist) +
   stat_pointinterval(color = "#0188ac", point_interval = "mean_qi") +
-  stat_summary(data = spotify, aes(x = popularity), color = "#ffc517",
-               pch = 18, size = 3, geom = "point", fun = mean) +
+  stat_summary(
+    data = spotify,
+    aes(x = popularity),
+    color = "#ffc517",
+    pch = 18,
+    size = 3,
+    geom = "point",
+    fun = mean
+  ) +
   labs(x = "Popularity", y = NULL)
+```
+
+## Chapter 17: Normal Hierarchical Models with Predictors
+
+```{r}
+library(tidyverse)
+library(brms)
+library(broom.mixed)
+library(tidybayes)
+library(patchwork)
+
+set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
+```
+
+```{r}
+data(cherry_blossom_sample, package = "bayesrules")
+
+running <- cherry_blossom_sample |>
+  select(runner, age, net) |>
+  drop_na() |>
+  mutate(runner_nice = str_glue("Runner {runner}")) |>
+  mutate(runner_nice = fct_inorder(runner_nice))
+```
+
+```{r}
+priors <- c(
+  prior(normal(0, 35), class = Intercept),
+  prior(normal(0, 2.5), class = b),
+  prior(exponential(0.1), class = sigma)
+)
+
+model_complete_pooling <- brm(
+  bf(net ~ age),
+  data = running,
+  family = gaussian(),
+  prior = priors,
+  chains = 4,
+  cores = 4,
+  iter = 4000,
+  seed = 1234,
+  refresh = 0,
+  backend = "cmdstanr",
+  file = "17_manual_cache/complete_pooled"
+)
+```
+
+```{r}
+tidy(model_complete_pooling, effects = "fixed", conf.level = 0.8)
+```
+
+```{r}
+model_complete_pooling |>
+  add_epred_draws(
+    newdata = tibble(
+      age = seq(min(running$age), max(running$age), length.out = 100)
+    )
+  ) |>
+  ggplot() +
+  aes(x = age, y = .epred) +
+  geom_smooth(
+    data = running,
+    aes(y = net, group = runner),
+    method = "lm",
+    formula = "y~x",
+    se = FALSE,
+    color = "grey70",
+    linewidth = 0.5
+  ) +
+  stat_lineribbon(alpha = 0.25, fill = "#002c55", color = "#002c55") +
+  labs(x = "Age", y = "Finish Time")
+```
+
+```{r}
+priors <- c(
+  prior(normal(100, 10), class = Intercept),
+  prior(normal(2.5, 1), class = b),
+  prior(exponential(0.1), class = sigma),
+  prior(exponential(0.1), class = sd)
+)
+
+model_running1_prior <- brm(
+  bf(net ~ age + (1 | runner)),
+  data = running,
+  family = gaussian(),
+  prior = priors,
+  sample_prior = "only",
+  chains = 4,
+  cores = 4,
+  iter = 4000,
+  threads = threading(2),
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0,
+  file = "17_manual_cache/running1_prior"
+)
+```
+
+```{r}
+p1 <- running |>
+  add_predicted_draws(model_running1_prior, ndraws = 100) |>
+  ggplot() +
+  aes(x = .prediction, group = .draw) +
+  geom_density(linewidth = 0.25, col = "#940034")
+
+p2 <- running |>
+  add_linpred_draws(model_running1_prior, ndraws = 6, seed = 11042004) |>
+  ggplot() +
+  aes(x = age, y = net) +
+  geom_line(
+    aes(y = .linpred, group = paste(runner, .draw)),
+    color = "#002c55",
+    linewidth = .25
+  ) +
+  coord_cartesian(ylim = c(50, 130)) +
+  facet_wrap(~.draw)
+
+(p1 | p2) + plot_layout(widths = c(.3, .7))
+```
+
+```{r}
+priors <- c(
+  prior(normal(100, 10), class = Intercept),
+  prior(normal(2.5, 1), class = b),
+  prior(exponential(0.1), class = sigma),
+  prior(exponential(0.1), class = sd)
+)
+
+model_running1 <- brm(
+  bf(net ~ age + (1 | runner)),
+  data = running,
+  prior = priors,
+  family = "gaussian",
+  chains = 4,
+  cores = 4,
+  iter = 4000,
+  threads = threading(2),
+  seed = 1234,
+  refresh = 0,
+  backend = "cmdstanr",
+  file = "17_manual_cache/running1"
+)
+```
+
+```{r}
+model_running1 |>
+  tidy(effects = c("fixed"), conf.level = .8) |>
+  select(-component)
+```
+
+```{r}
+model_running1 |>
+  linpred_draws(running, ndraws = 200, re_formula = NA) |>
+  ggplot() +
+  aes(x = age, y = net) +
+  stat_lineribbon(
+    aes(y = .linpred),
+    fill = "#d65616",
+    color = "#d65616",
+    alpha = 0.2
+  ) +
+  labs(x = "Age", y = "Finish Time")
+```
+
+```{r}
+#| fig-width: 8
+#| fig-height: 10
+#| fig-dpi: 300
+
+running1_runner_offsets <- model_running1 |>
+  linpred_draws(
+    newdata = tibble(
+      runner = unique(running$runner),
+      age = running$age |> mean()
+    )
+  ) |>
+  ungroup() |>
+  mutate(runner = fct_reorder(factor(runner), .linpred, .fun = mean))
+
+running1_runner_offsets |>
+  ggplot() +
+  aes(x = .linpred, y = runner) +
+  stat_pointinterval(color = "#002c55")
+```
+
+```{r}
+running |>
+  filter(runner %in% c("4", "5")) |>
+  add_linpred_draws(model_running1, ndraws = 100) |>
+  ggplot() +
+  aes(x = age, y = net) +
+  geom_line(
+    aes(y = .linpred, group = paste(runner, .draw), color = runner),
+    linewidth = 0.3,
+    alpha = .2
+  ) +
+  geom_point(aes(color = runner)) +
+  scale_color_manual(values = c("#d65616", "#0188ac"))
+```
+
+```{r}
+performance::icc(model_running1, by_group = TRUE)
+```
+
+```{r}
+p1 <- running |>
+  ggplot() +
+  aes(x = age, y = net, group = runner) +
+  geom_smooth(
+    method = "lm",
+    formula = "y~x",
+    se = FALSE,
+    linewidth = 0.5,
+    color = "#fb7185"
+  ) +
+  coord_cartesian(ylim = c(60, 125)) +
+  labs(
+    x = "Age",
+    y = "Finish Time",
+    title = "Observed Data",
+    subtitle = "Basic per-runner OLS models"
+  )
+
+p2 <- running |>
+  add_linpred_draws(model_running1, ndraws = 100) |>
+  ungroup() |>
+  summarize(.linpred = mean(.linpred), .by = c(runner, age)) |>
+  ggplot() +
+  aes(x = age, y = net) +
+  geom_line(
+    aes(y = .linpred, group = runner),
+    linewidth = 0.5,
+    color = "#0188ac"
+  ) +
+  coord_cartesian(ylim = c(60, 125)) +
+  labs(
+    x = "Age",
+    y = "Finish Time",
+    title = "Random Intercepts Only",
+    subtitle = "Posterior Means"
+  )
+
+(p1 | p2) + plot_layout(axes = "collect")
+```
+
+```{r}
+priors <- c(
+  prior(normal(100, 10), class = Intercept),
+  prior(normal(2.5, 1), class = b),
+  prior(exponential(0.1), class = sigma),
+  prior(exponential(0.1), class = sd),
+  prior(lkj(1), class = cor)
+)
+
+model_running2 <- brm(
+  bf(net ~ age + (1 + age | runner)),
+  data = running,
+  family = gaussian(),
+  prior = priors,
+  cores = 4,
+  chains = 4,
+  iter = 4000,
+  threads = threading(2),
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0,
+  file = "17_manual_cache/running2",
+  control = list(adapt_delta = .98)
+)
+```
+
+```{r}
+model_running2 |>
+  tidy(effects = c("fixed"), conf.level = .8) |>
+  select(-component)
+```
+
+```{r}
+model_running2 |>
+  linpred_draws(running, ndraws = 200, re_formula = NA) |>
+  ggplot() +
+  aes(x = age, y = net) +
+  stat_lineribbon(
+    aes(y = .linpred),
+    color = "#d65616",
+    fill = "#d65616",
+    alpha = .2
+  ) +
+  labs(x = "Age", y = "Finish Time")
+```
+
+```{r}
+model_running2 |>
+  tidy(effects = c("ran_pars"), conf.level = 0.8) |>
+  select(-component)
+```
+
+```{r}
+performance::icc(model_running2)
+```
+
+```{r}
+running2_slope_int_cor <- model_running2 |>
+  spread_draws(b_Intercept, b_age, r_runner[runner, term]) |>
+  pivot_wider(names_from = "term", values_from = r_runner) |>
+  mutate(runner_intercept = b_Intercept + Intercept, runner_age = b_age) |>
+  group_by(runner) |>
+  summarize(
+    correlation = cor(runner_intercept, runner_age),
+    across(c(runner_intercept, runner_age), ~ median(.))
+  )
+
+running2_slope_int_cor |>
+  ggplot(aes(x = runner_intercept, y = correlation)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "#2db25f", formula = "y~x") +
+  labs(x = "β<sub>0<sub>j</sub></sub>", y = "ρ") +
+  theme(axis.title.x = ggtext::element_markdown())
+```
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+#| fig-dpi: 300
+
+p1 <- running |>
+  add_linpred_draws(model_complete_pooling, ndraws = 100) |>
+  ungroup() |>
+  summarize(.linpred = mean(.linpred), .by = c(runner, age)) |>
+  ggplot(aes(x = age, y = net)) +
+  geom_line(
+    aes(y = .linpred, group = runner),
+    linewidth = 1,
+    color = "#ffc517"
+  ) +
+  coord_cartesian(ylim = c(60, 125)) +
+  labs(x = "Age", y = "Race time", title = "Completely pooled model")
+
+p2 <- running |>
+  add_linpred_draws(model_running1, ndraws = 100) |>
+  ungroup() |>
+  summarize(.linpred = mean(.linpred), .by = c(runner, age)) |>
+  ggplot(aes(x = age, y = net)) +
+  geom_line(
+    aes(y = .linpred, group = runner),
+    linewidth = 0.5,
+    color = "#0188ac"
+  ) +
+  coord_cartesian(ylim = c(60, 125)) +
+  labs(x = "Age", y = NULL, title = "Random intercepts only")
+
+p3 <- running |>
+  add_linpred_draws(model_running2, ndraws = 100) |>
+  ungroup() |>
+  summarize(.linpred = mean(.linpred), .by = c(runner, age)) |>
+  ggplot(aes(x = age, y = net)) +
+  geom_line(
+    aes(y = .linpred, group = runner),
+    linewidth = 0.5,
+    color = "#940034"
+  ) +
+  coord_cartesian(ylim = c(60, 125)) +
+  labs(x = "Age", y = NULL, title = "Random intercepts/slopes")
+
+(p1 | p2 | p3) + plot_layout(axes = "collect")
+```
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+#| fig-dpi: 300
+
+p1 <- pp_check(model_complete_pooling, ndraws = 25, type = "dens_overlay") +
+  labs(title = "Completely Pooled Model")
+
+p2 <- pp_check(model_running1, ndraws = 25, type = "dens_overlay") +
+  labs(title = "Random Intercepts Only")
+
+p3 <- pp_check(model_running2, ndraws = 25, type = "dens_overlay") +
+  labs(title = "Random Intercepts/Slopes")
+
+(p1 | p2 | p3) +
+  plot_layout(guides = "collect", axes = "collect") &
+  theme(legend.position = "bottom") &
+  coord_cartesian(c(45, 135)) &
+  labs(x = "Finish Time")
+```
+
+```{r}
+loo_stats <- tribble(
+  ~model_name, ~ model,
+  "Completely pooled model", model_complete_pooling,
+  "Random intercepts only", model_running1,
+  "Random intercepts and slopes", model_running2
+) |> 
+  mutate(loo = map(model, ~loo(.))) |> 
+  mutate(loo_stuff = map(loo, ~as_tibble(.$estimates, 
+                                         rownames = "statistic"))) |> 
+  select(model_name, loo_stuff) |> 
+  unnest(loo_stuff) |> 
+  filter(statistic == "elpd_loo") |> 
+  arrange(desc(Estimate))
+
+loo_stats
+```
+
+```{r}
+loo_stats |> 
+  mutate(model_name = fct_rev(fct_inorder(model_name))) |> 
+  ggplot(aes(x = Estimate, y = model_name)) +
+  geom_pointrange(aes(xmin = Estimate - 2 * SE, xmax = Estimate + 2 * SE)) +
+  labs(x = "ELPD", y = NULL)
+```
+
+```{r}
+
+```
+
+```{r}
+
 ```
