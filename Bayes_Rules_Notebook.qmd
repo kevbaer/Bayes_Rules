@@ -3097,9 +3097,134 @@ loo_stats |>
 ```
 
 ```{r}
-
+loo_compare(loo(model_complete_pooling),
+            loo(model_running1), 
+            loo(model_running2))
 ```
 
 ```{r}
+data(spotify, package = "bayesrules")
 
+spotify <- spotify |> 
+  select(artist, title, danceability, valence, genre)
+```
+
+```{r}
+priors <- c(
+  prior(normal(50, 2.5), class = Intercept),
+  prior(normal(0, 2.5), class = b),
+  prior(exponential(1), class = sigma),
+  prior(exponential(1), class = sd)
+)
+
+model_1_default_priors <- brm(
+  bf(danceability ~ valence + genre + (1 | artist)),
+  data = spotify, family = gaussian(), 
+  chains = 4, cores = 4, iter = 4000, 
+  threads = threading(2),
+  seed = 1234,
+  file = "17_manual_cache/spotify_1_default",
+  backend = "cmdstanr",
+  refresh = 0
+) 
+
+model_1_my_priors <- brm(
+  bf(danceability ~ valence + genre + (1 | artist)),
+  data = spotify, family = gaussian(), 
+  chains = 4, cores = 4, iter = 4000, 
+  threads = threading(2),
+  prior = priors,
+  seed = 1234,
+  file = "17_manual_cache/spotify_1_set",
+  backend = "cmdstanr",
+  refresh = 0
+) 
+
+model_2_default_priors <- brm(
+  bf(danceability ~ valence + genre + (valence | artist)),
+  data = spotify, family = gaussian(), 
+  chains = 4, cores = 4, iter = 4000, 
+  threads = threading(2),
+  seed = 1234,
+  file = "17_manual_cache/spotify_2_default",
+  backend = "cmdstanr",
+  refresh = 0
+) 
+
+priors <- c(
+  prior(normal(50, 2.5), class = Intercept),
+  prior(normal(0, 2.5), class = b),
+  prior(exponential(1), class = sigma),
+  prior(exponential(1), class = sd),
+  prior(lkj(1), class = cor)
+)
+
+model_2_my_priors <- brm(
+  bf(danceability ~ valence + genre + (valence | artist)),
+  data = spotify, family = gaussian(), 
+  chains = 4, cores = 4, iter = 4000, 
+  threads = threading(2),
+  prior = priors,
+  seed = 1234,
+  file = "17_manual_cache/spotify_2_set",
+  backend = "cmdstanr",
+  refresh = 0
+) 
+```
+
+```{r}
+pp_check(model_1_default_priors, ndraws = 25)
+```
+
+```{r}
+pp_check(model_1_my_priors, ndraws = 25)
+```
+
+```{r}
+pp_check(model_2_default_priors, ndraws = 25)
+```
+
+```{r}
+pp_check(model_2_my_priors, ndraws = 25)
+```
+
+```{r}
+loo_compare(
+  loo(model_1_default_priors),
+  loo(model_1_my_priors),
+  loo(model_2_default_priors),
+  loo(model_2_my_priors)
+)
+```
+
+```{r}
+loo_stats <- tribble(
+  ~model_name, ~model,
+  "Model 1, Default Priors", model_1_default_priors,
+  "Model 1, My Priors", model_1_my_priors,
+  "Model 2, Default Priors", model_2_default_priors,
+  "Model 2, My Priors", model_2_my_priors
+) |> 
+  mutate(loo = map(model, ~loo(.))) |> 
+  mutate(loo_stuff = map(loo, ~as_tibble(.$estimates, rownames = "statistic"))) |> 
+  select(model_name, loo_stuff) |> 
+  unnest(loo_stuff) |> 
+  filter(statistic == "elpd_loo") |> 
+  arrange(desc(Estimate))
+
+loo_stats |> 
+  mutate(model_name = fct_rev(fct_inorder(model_name))) |> 
+  ggplot(aes(x = Estimate, y = model_name)) +
+  geom_pointrange(aes(xmin = Estimate - 2 * SE, xmax = Estimate + 2 * SE)) +
+  labs(x = "ELPD", y = NULL)
+```
+
+```{r}
+tidy(model_1_my_priors, effects = "fixed", conf.level = .8)
+```
+
+```{r}
+mcmc_plot(model_1_my_priors, variable = "genre", regex = TRUE, prob = .8,
+          type = "areas") + 
+  geom_vline(xintercept = 0, color = "#b3114b")
 ```
