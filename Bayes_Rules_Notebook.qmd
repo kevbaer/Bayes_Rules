@@ -3228,3 +3228,198 @@ mcmc_plot(model_1_my_priors, variable = "genre", regex = TRUE, prob = .8,
           type = "areas") + 
   geom_vline(xintercept = 0, color = "#b3114b")
 ```
+
+## Chapter 18: Non-Normal Hierarchical Regression & Classificiation
+
+```{r}
+library(tidyverse)
+library(brms)
+library(broom.mixed)
+library(tidybayes)
+library(patchwork)
+library(marginaleffects)
+
+set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
+
+data(climbers_sub, package = "bayesrules")
+data(airbnb, package = "bayesrules")
+
+climbers <- climbers_sub |> 
+  select(expedition_id, member_id, success, year, season,
+         age, expedition_role, oxygen_used)
+```
+
+```{r}
+climbers |> 
+  count(success) |> 
+  mutate(prop = (n / sum(n)) |> scales::percent(accuracy = 0.01))
+```
+
+```{r}
+climbers |> 
+  ggplot() +
+  aes(x = age, y = success, color = oxygen_used) +
+  geom_dots(aes(side = if_else(success == TRUE, "bottom", "top")),
+            pch = 19, scale = 0.6) +
+  scale_y_discrete(expand = expansion(mult = c(0.1, 0.1))) +
+  scale_color_manual(values = c("#d65616", "#0188ac")) +
+  labs(x = "Age", y = "Success", color = "Oxygen Used") +
+  theme(legend.position = "top")
+```
+
+```{r}
+priors <- c(
+  prior(normal(0, 2.5), class = Intercept),
+  prior(normal(0, 2.5), class = b),
+  prior(exponential(1), class = sd)
+)
+
+model_success <- brm(
+  bf(success ~ age + oxygen_used + (1 | expedition_id)),
+  family = bernoulli(),
+  data = climbers,
+  prior = priors,
+  chains = 4,
+  threads = threading(2),
+  iter = 4000,
+  cores = 4,
+  backend = "cmdstanr",
+  file = "18_manual_cache/model_success",
+  refresh = 0,
+  seed = 1234
+)
+```
+
+```{r}
+model_success |> 
+  tidy(effects = c("fixed"), conf.level = 0.8) |> 
+  select(-component)
+```
+
+```{r}
+# Automatic way
+plot_predictions(model_success, condition = "age", re_formula = NA,
+                 conf_level = 0.8) + 
+  scale_y_continuous(labels = scales::label_percent()) 
+```
+
+```{r}
+# Manual way
+
+datagrid(model = model_success, age = seq(17, 65, by = 1)) |> 
+  add_epred_draws(model_success, re_formula = NA) |> 
+  ggplot() +
+  aes(x = age, y = .epred) +
+  stat_lineribbon(color = "#002c55", fill = "#b2e3ff", alpha = .35) +
+  scale_y_continuous(labels = scales::label_percent())
+```
+
+```{r}
+mfx_success <- model_success |> 
+  slopes(newdata = datagrid(age = seq(17, 65, by = 1)),
+         variables = "age", type = "response", re_formula = NA) |> 
+  get_draws()
+
+mfx_success |> 
+  ggplot() +
+  aes(x = age, y = draw) +
+  stat_lineribbon(alpha = 0.35, fill = "#d65616", color = "#d65616") +
+  labs(x = "Age", y = "Change in Success Probability") +
+  scale_y_continuous(labels = scales::label_percent()) 
+```
+
+```{r}
+datagrid(model = model_success, oxygen_used = c(TRUE, FALSE)) |> 
+  add_epred_draws(model_success, re_formula = NA) |> 
+  ggplot() +
+  aes(x = oxygen_used, y = .epred, fill = oxygen_used, color = oxygen_used) +
+  stat_gradientinterval(width = .25) +
+  scale_y_continuous(labels = scales::label_percent()) +
+  scale_fill_manual(values = c("#fda4d0", "#8ee7af"), guide = "none") +
+  scale_color_manual(values = c("#b3114b", "#2db25f"), guide = "none") +
+  labs(x = "Oxygen Used", y = "Posterior Probability of Success")
+```
+
+```{r}
+performance::icc(model_success, by_group = TRUE)
+```
+
+```{r}
+pp_check(model_success, ndraws = 100, type = "bars")
+```
+
+```{r}
+pp_check(model_success, type = "stat", bins = 30) +
+  labs(x = "Probability of success")
+```
+
+```{r}
+success_preds <- model_success |> 
+  predicted_draws(climbers)
+
+success_classifications <- success_preds |> 
+  ungroup() |> 
+  summarize(success_prob = mean(.prediction), success_actual = success[1],
+            .by = .row) |> 
+  mutate(success_pred = success_prob > .5)
+
+success_classifications |> 
+  count(success_actual, success_pred) |> 
+  pivot_wider(names_from = "success_pred", values_from = "n")
+```
+
+```{r}
+priors <- c(
+  prior(normal(3, 2.5), class = Intercept),
+  prior(normal(0, 2.5), class = b, coef = "rating"),
+  prior(normal(0, 2.5), class = b, coef = "room_typePrivateroom"),
+  prior(normal(0, 2.5), class = b, coef = "room_typeSharedroom"),
+  prior(exponential(1), class = shape),
+  prior(exponential(1), class = sd)
+)
+
+model_reviews <- brm(
+  bf(reviews ~ rating + room_type + (1 | neighborhood)),
+  data = airbnb,
+  prior = priors,
+  family = negbinomial(),
+  cores = 4,
+  chains = 4,
+  iter = 4000,
+  threads = threading(2),
+  seed = 1234,
+  backend = "cmdstanr",
+  refresh = 0,
+  file = "18_manual_cache/model_reviews"
+)
+```
+
+```{r}
+model_reviews |> 
+  tidy(effects = c("fixed"), conf.level = 0.8) |> 
+  select(-component)
+```
+
+```{r}
+mfx_reviews <- model_reviews |> 
+  slopes(newdata = datagrid(model = model_reviews, 
+                            rating = airbnb$rating |> unique(),
+                            variables = "rating", type = "response",
+                            re_formula = NA)) |> 
+  get_draws()
+
+mfx_reviews |> 
+  ggplot() +
+  aes(x = rating, y = draw) +
+  stat_lineribbon(alpha = .25, fill = "#0188ac", color = "#0188ac")
+```
+
+Doesn't look great...
+
+```{r}
+pp_check(model_reviews, ndraws = 25)
+```
+
+```{r}
+loo(model_reviews)
+```
