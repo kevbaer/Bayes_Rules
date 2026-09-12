@@ -319,7 +319,8 @@ bb_sim_samples |>
 
 According to McElreath (p. 284),
 
-> If the chains are exploring the same space efficiently, the histograms should be similar to one another and largely overlapping.
+> If the chains are exploring the same space efficiently, the histograms should
+> be similar to one another and largely overlapping.
 
 ```{r}
 bb_sim_samples |>
@@ -336,7 +337,8 @@ Looks consistent across the four chains!
 brms::neff_ratio(bb_sim_samples)
 ```
 
-"Our 20,000 Markov chain values are about as useful as only 6800 independent samples (0.34 × 20000)." Happy that this number is greater than .1
+"Our 20,000 Markov chain values are about as useful as only 6800 independent
+samples (0.34 × 20000)." Happy that this number is greater than .1
 
 ```{r}
 bayesplot::mcmc_acf(bb_sim_samples$draws(variables = "pi"))
@@ -366,7 +368,10 @@ library(tidyverse)
 set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
 ```
 
-"Think of Markov chains as a tour around the range of posterior possible values of a parameter (like µ or π or whatever). The chains move around that parameter and hopefully converge around it, but the chains need a tour manager to do that properly."
+"Think of Markov chains as a tour around the range of posterior possible values
+of a parameter (like µ or π or whatever). The chains move around that parameter
+and hopefully converge around it, but the chains need a tour manager to do that
+properly."
 
 ```{r}
 one_mh_iteration <- function(w, current) {
@@ -1532,7 +1537,8 @@ res |>
   )
 ```
 
-So across our cross validation and elpd, we can see that the temperature + location is performing quite well.
+So across our cross validation and elpd, we can see that the temperature +
+location is performing quite well.
 
 ## Chapter 12: Poisson & Negative Binomial Regression
 
@@ -2173,7 +2179,8 @@ predict(
 )
 ```
 
-Typically avoid naive bayes because assumes predictors are independent and all quantitative predictors are normally distributed.
+Typically avoid naive bayes because assumes predictors are independent and all
+quantitative predictors are normally distributed.
 
 ## Chapter 15: Hierarchical Models are Exciting
 
@@ -2239,7 +2246,8 @@ model_complete_pooling <- brm(
 tidy(model_complete_pooling, effects = "fixed", conf.level = 0.8)
 ```
 
-Since the 80% credible interval contains 0, we can't feel confident that age is impactful.
+Since the 80% credible interval contains 0, we can't feel confident that age is
+impactful.
 
 ```{r}
 model_complete_pooling |>
@@ -3072,40 +3080,43 @@ p3 <- pp_check(model_running2, ndraws = 25, type = "dens_overlay") +
 
 ```{r}
 loo_stats <- tribble(
-  ~model_name, ~ model,
-  "Completely pooled model", model_complete_pooling,
-  "Random intercepts only", model_running1,
-  "Random intercepts and slopes", model_running2
-) |> 
-  mutate(loo = map(model, ~loo(.))) |> 
-  mutate(loo_stuff = map(loo, ~as_tibble(.$estimates, 
-                                         rownames = "statistic"))) |> 
-  select(model_name, loo_stuff) |> 
-  unnest(loo_stuff) |> 
-  filter(statistic == "elpd_loo") |> 
+  ~model_name                    , ~model                 ,
+  "Completely pooled model"      , model_complete_pooling ,
+  "Random intercepts only"       , model_running1         ,
+  "Random intercepts and slopes" , model_running2
+) |>
+  mutate(loo = map(model, ~ loo(.))) |>
+  mutate(
+    loo_stuff = map(loo, ~ as_tibble(.$estimates, rownames = "statistic"))
+  ) |>
+  select(model_name, loo_stuff) |>
+  unnest(loo_stuff) |>
+  filter(statistic == "elpd_loo") |>
   arrange(desc(Estimate))
 
 loo_stats
 ```
 
 ```{r}
-loo_stats |> 
-  mutate(model_name = fct_rev(fct_inorder(model_name))) |> 
+loo_stats |>
+  mutate(model_name = fct_rev(fct_inorder(model_name))) |>
   ggplot(aes(x = Estimate, y = model_name)) +
   geom_pointrange(aes(xmin = Estimate - 2 * SE, xmax = Estimate + 2 * SE)) +
   labs(x = "ELPD", y = NULL)
 ```
 
 ```{r}
-loo_compare(loo(model_complete_pooling),
-            loo(model_running1), 
-            loo(model_running2))
+loo_compare(
+  loo(model_complete_pooling),
+  loo(model_running1),
+  loo(model_running2)
+)
 ```
 
 ```{r}
 data(spotify, package = "bayesrules")
 
-spotify <- spotify |> 
+spotify <- spotify |>
   select(artist, title, danceability, valence, genre)
 ```
 
@@ -3119,37 +3130,46 @@ priors <- c(
 
 model_1_default_priors <- brm(
   bf(danceability ~ valence + genre + (1 | artist)),
-  data = spotify, family = gaussian(), 
-  chains = 4, cores = 4, iter = 4000, 
+  data = spotify,
+  family = gaussian(),
+  chains = 4,
+  cores = 4,
+  iter = 4000,
   threads = threading(2),
   seed = 1234,
   file = "17_manual_cache/spotify_1_default",
   backend = "cmdstanr",
   refresh = 0
-) 
+)
 
 model_1_my_priors <- brm(
   bf(danceability ~ valence + genre + (1 | artist)),
-  data = spotify, family = gaussian(), 
-  chains = 4, cores = 4, iter = 4000, 
+  data = spotify,
+  family = gaussian(),
+  chains = 4,
+  cores = 4,
+  iter = 4000,
   threads = threading(2),
   prior = priors,
   seed = 1234,
   file = "17_manual_cache/spotify_1_set",
   backend = "cmdstanr",
   refresh = 0
-) 
+)
 
 model_2_default_priors <- brm(
   bf(danceability ~ valence + genre + (valence | artist)),
-  data = spotify, family = gaussian(), 
-  chains = 4, cores = 4, iter = 4000, 
+  data = spotify,
+  family = gaussian(),
+  chains = 4,
+  cores = 4,
+  iter = 4000,
   threads = threading(2),
   seed = 1234,
   file = "17_manual_cache/spotify_2_default",
   backend = "cmdstanr",
   refresh = 0
-) 
+)
 
 priors <- c(
   prior(normal(50, 2.5), class = Intercept),
@@ -3161,15 +3181,18 @@ priors <- c(
 
 model_2_my_priors <- brm(
   bf(danceability ~ valence + genre + (valence | artist)),
-  data = spotify, family = gaussian(), 
-  chains = 4, cores = 4, iter = 4000, 
+  data = spotify,
+  family = gaussian(),
+  chains = 4,
+  cores = 4,
+  iter = 4000,
   threads = threading(2),
   prior = priors,
   seed = 1234,
   file = "17_manual_cache/spotify_2_set",
   backend = "cmdstanr",
   refresh = 0
-) 
+)
 ```
 
 ```{r}
@@ -3199,21 +3222,23 @@ loo_compare(
 
 ```{r}
 loo_stats <- tribble(
-  ~model_name, ~model,
-  "Model 1, Default Priors", model_1_default_priors,
-  "Model 1, My Priors", model_1_my_priors,
-  "Model 2, Default Priors", model_2_default_priors,
-  "Model 2, My Priors", model_2_my_priors
-) |> 
-  mutate(loo = map(model, ~loo(.))) |> 
-  mutate(loo_stuff = map(loo, ~as_tibble(.$estimates, rownames = "statistic"))) |> 
-  select(model_name, loo_stuff) |> 
-  unnest(loo_stuff) |> 
-  filter(statistic == "elpd_loo") |> 
+  ~model_name               , ~model                 ,
+  "Model 1, Default Priors" , model_1_default_priors ,
+  "Model 1, My Priors"      , model_1_my_priors      ,
+  "Model 2, Default Priors" , model_2_default_priors ,
+  "Model 2, My Priors"      , model_2_my_priors
+) |>
+  mutate(loo = map(model, ~ loo(.))) |>
+  mutate(
+    loo_stuff = map(loo, ~ as_tibble(.$estimates, rownames = "statistic"))
+  ) |>
+  select(model_name, loo_stuff) |>
+  unnest(loo_stuff) |>
+  filter(statistic == "elpd_loo") |>
   arrange(desc(Estimate))
 
-loo_stats |> 
-  mutate(model_name = fct_rev(fct_inorder(model_name))) |> 
+loo_stats |>
+  mutate(model_name = fct_rev(fct_inorder(model_name))) |>
   ggplot(aes(x = Estimate, y = model_name)) +
   geom_pointrange(aes(xmin = Estimate - 2 * SE, xmax = Estimate + 2 * SE)) +
   labs(x = "ELPD", y = NULL)
@@ -3224,8 +3249,13 @@ tidy(model_1_my_priors, effects = "fixed", conf.level = .8)
 ```
 
 ```{r}
-mcmc_plot(model_1_my_priors, variable = "genre", regex = TRUE, prob = .8,
-          type = "areas") + 
+mcmc_plot(
+  model_1_my_priors,
+  variable = "genre",
+  regex = TRUE,
+  prob = .8,
+  type = "areas"
+) +
   geom_vline(xintercept = 0, color = "#b3114b")
 ```
 
@@ -3244,23 +3274,34 @@ set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
 data(climbers_sub, package = "bayesrules")
 data(airbnb, package = "bayesrules")
 
-climbers <- climbers_sub |> 
-  select(expedition_id, member_id, success, year, season,
-         age, expedition_role, oxygen_used)
+climbers <- climbers_sub |>
+  select(
+    expedition_id,
+    member_id,
+    success,
+    year,
+    season,
+    age,
+    expedition_role,
+    oxygen_used
+  )
 ```
 
 ```{r}
-climbers |> 
-  count(success) |> 
+climbers |>
+  count(success) |>
   mutate(prop = (n / sum(n)) |> scales::percent(accuracy = 0.01))
 ```
 
 ```{r}
-climbers |> 
+climbers |>
   ggplot() +
   aes(x = age, y = success, color = oxygen_used) +
-  geom_dots(aes(side = if_else(success == TRUE, "bottom", "top")),
-            pch = 19, scale = 0.6) +
+  geom_dots(
+    aes(side = if_else(success == TRUE, "bottom", "top")),
+    pch = 19,
+    scale = 0.6
+  ) +
   scale_y_discrete(expand = expansion(mult = c(0.1, 0.1))) +
   scale_color_manual(values = c("#d65616", "#0188ac")) +
   labs(x = "Age", y = "Success", color = "Oxygen Used") +
@@ -3291,23 +3332,27 @@ model_success <- brm(
 ```
 
 ```{r}
-model_success |> 
-  tidy(effects = c("fixed"), conf.level = 0.8) |> 
+model_success |>
+  tidy(effects = c("fixed"), conf.level = 0.8) |>
   select(-component)
 ```
 
 ```{r}
 # Automatic way
-plot_predictions(model_success, condition = "age", re_formula = NA,
-                 conf_level = 0.8) + 
-  scale_y_continuous(labels = scales::label_percent()) 
+plot_predictions(
+  model_success,
+  condition = "age",
+  re_formula = NA,
+  conf_level = 0.8
+) +
+  scale_y_continuous(labels = scales::label_percent())
 ```
 
 ```{r}
 # Manual way
 
-datagrid(model = model_success, age = seq(17, 65, by = 1)) |> 
-  add_epred_draws(model_success, re_formula = NA) |> 
+datagrid(model = model_success, age = seq(17, 65, by = 1)) |>
+  add_epred_draws(model_success, re_formula = NA) |>
   ggplot() +
   aes(x = age, y = .epred) +
   stat_lineribbon(color = "#002c55", fill = "#b2e3ff", alpha = .35) +
@@ -3315,22 +3360,26 @@ datagrid(model = model_success, age = seq(17, 65, by = 1)) |>
 ```
 
 ```{r}
-mfx_success <- model_success |> 
-  slopes(newdata = datagrid(age = seq(17, 65, by = 1)),
-         variables = "age", type = "response", re_formula = NA) |> 
+mfx_success <- model_success |>
+  slopes(
+    newdata = datagrid(age = seq(17, 65, by = 1)),
+    variables = "age",
+    type = "response",
+    re_formula = NA
+  ) |>
   get_draws()
 
-mfx_success |> 
+mfx_success |>
   ggplot() +
   aes(x = age, y = draw) +
   stat_lineribbon(alpha = 0.35, fill = "#d65616", color = "#d65616") +
   labs(x = "Age", y = "Change in Success Probability") +
-  scale_y_continuous(labels = scales::label_percent()) 
+  scale_y_continuous(labels = scales::label_percent())
 ```
 
 ```{r}
-datagrid(model = model_success, oxygen_used = c(TRUE, FALSE)) |> 
-  add_epred_draws(model_success, re_formula = NA) |> 
+datagrid(model = model_success, oxygen_used = c(TRUE, FALSE)) |>
+  add_epred_draws(model_success, re_formula = NA) |>
   ggplot() +
   aes(x = oxygen_used, y = .epred, fill = oxygen_used, color = oxygen_used) +
   stat_gradientinterval(width = .25) +
@@ -3354,17 +3403,20 @@ pp_check(model_success, type = "stat", bins = 30) +
 ```
 
 ```{r}
-success_preds <- model_success |> 
+success_preds <- model_success |>
   predicted_draws(climbers)
 
-success_classifications <- success_preds |> 
-  ungroup() |> 
-  summarize(success_prob = mean(.prediction), success_actual = success[1],
-            .by = .row) |> 
+success_classifications <- success_preds |>
+  ungroup() |>
+  summarize(
+    success_prob = mean(.prediction),
+    success_actual = success[1],
+    .by = .row
+  ) |>
   mutate(success_pred = success_prob > .5)
 
-success_classifications |> 
-  count(success_actual, success_pred) |> 
+success_classifications |>
+  count(success_actual, success_pred) |>
   pivot_wider(names_from = "success_pred", values_from = "n")
 ```
 
@@ -3395,20 +3447,25 @@ model_reviews <- brm(
 ```
 
 ```{r}
-model_reviews |> 
-  tidy(effects = c("fixed"), conf.level = 0.8) |> 
+model_reviews |>
+  tidy(effects = c("fixed"), conf.level = 0.8) |>
   select(-component)
 ```
 
 ```{r}
-mfx_reviews <- model_reviews |> 
-  slopes(newdata = datagrid(model = model_reviews, 
-                            rating = airbnb$rating |> unique(),
-                            variables = "rating", type = "response",
-                            re_formula = NA)) |> 
+mfx_reviews <- model_reviews |>
+  slopes(
+    newdata = datagrid(
+      model = model_reviews,
+      rating = airbnb$rating |> unique(),
+      variables = "rating",
+      type = "response",
+      re_formula = NA
+    )
+  ) |>
   get_draws()
 
-mfx_reviews |> 
+mfx_reviews |>
   ggplot() +
   aes(x = rating, y = draw) +
   stat_lineribbon(alpha = .25, fill = "#0188ac", color = "#0188ac")
@@ -3422,4 +3479,180 @@ pp_check(model_reviews, ndraws = 25)
 
 ```{r}
 loo(model_reviews)
+```
+
+## Chapter 19: Adding More Layers
+
+```{r}
+library(tidyverse)
+library(brms)
+library(tidybayes)
+
+set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
+
+data(airbnb, package = "bayesrules")
+```
+
+```{r}
+airbnb |>
+  ggplot() +
+  aes(x = price) +
+  geom_histogram(binwidth = 20, fill = "#5c4cfb", color = "white")
+```
+
+```{r}
+airbnb |>
+  ggplot() +
+  aes(x = log(price)) +
+  geom_histogram(binwidth = .25, fill = "#5c4cfb", color = "white")
+```
+
+Woah, now it looks kinda normalish
+
+```{r}
+priors <- c(
+  prior(normal(4.6, 2.5), class = Intercept),
+  prior(normal(0, 2.5), class = b),
+  prior(exponential(1), class = sd)
+)
+
+airbnb_model_1 <- brm(
+  bf(log(price) ~ bedrooms + rating + room_type + (1 | neighborhood)),
+  data = airbnb,
+  family = gaussian(),
+  prior = priors,
+  cores = 4,
+  chains = 4,
+  iter = 4000,
+  seed = 1234,
+  backend = "cmdstanr",
+  file = "19_manual_cache/airbnb_model_1",
+  refresh = 0,
+  threads = threading(2)
+)
+```
+
+```{r}
+prior_summary(airbnb_model_1)
+```
+
+```{r}
+pp_check(airbnb_model_1, ndraws = 25) +
+  theme(legend.position = "inside", legend.position.inside = c(0.9, 0.85))
+```
+
+Doesn't look half-bad.
+
+But we also have predictors like walk_score which are the same for each
+neighborhood but impact the understanding
+
+```{r}
+priors <- c(
+  prior(normal(4.6, 2.5), class = Intercept),
+  prior(normal(0, 2.5), class = b),
+  prior(exponential(1), class = sd)
+)
+
+airbnb_model_2 <- brm(
+  bf(
+    log(price) ~ walk_score + bedrooms + rating + room_type + (1 | neighborhood)
+  ),
+  data = airbnb,
+  family = gaussian(),
+  prior = priors,
+  cores = 4,
+  chains = 4,
+  iter = 4000,
+  seed = 1234,
+  backend = "cmdstanr",
+  file = "19_manual_cache/airbnb_model_2",
+  refresh = 0,
+  threads = threading(2)
+)
+
+prior_summary(airbnb_model_2)
+```
+
+```{r}
+pp_check(airbnb_model_2, ndraws = 25) +
+  theme(legend.position = "inside", legend.position.inside = c(0.85, 0.85))
+```
+
+Basically the same...
+
+```{r}
+loo_compare(
+  loo(airbnb_model_1),
+  loo(airbnb_model_2)
+)
+```
+
+```{r}
+data(climbers_sub, package = "bayesrules")
+
+climbers <- climbers_sub |>
+  select(
+    peak_name,
+    expedition_id,
+    member_id,
+    success,
+    year,
+    season,
+    age,
+    expedition_role,
+    oxygen_used
+  )
+```
+
+```{r}
+priors <- c(
+  prior(normal(0, 2.5), class = Intercept),
+  prior(normal(0, 2.5), class = b),
+  prior(exponential(1), class = sd)
+)
+
+climb_model_1 <- brm(
+  bf(success ~ age + oxygen_used + (1 | expedition_id)),
+  family = bernoulli(),
+  data = climbers,
+  prior = priors,
+  chains = 4,
+  threads = threading(2),
+  iter = 4000,
+  cores = 4,
+  backend = "cmdstanr",
+  file = "19_manual_cache/climb_model_1",
+  refresh = 0,
+  seed = 1234
+)
+
+climb_model_2 <- brm(
+  bf(success ~ age + oxygen_used + (1 | expedition_id) + (1 | peak_name)),
+  family = bernoulli(),
+  data = climbers,
+  prior = priors,
+  chains = 4,
+  threads = threading(2),
+  iter = 4000,
+  cores = 4,
+  backend = "cmdstanr",
+  file = "19_manual_cache/climb_model_2",
+  refresh = 0,
+  seed = 1234
+)
+```
+
+```{r}
+pp_check(climb_model_1, type = "bars", ndraws = 25)
+```
+
+```{r}
+pp_check(climb_model_2, type = "bars", ndraws = 25)
+```
+
+```{r}
+loo_compare(
+  loo(climb_model_1),
+  loo(climb_model_2)
+)
 ```
