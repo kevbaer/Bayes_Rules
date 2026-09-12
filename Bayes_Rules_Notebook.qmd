@@ -319,8 +319,7 @@ bb_sim_samples |>
 
 According to McElreath (p. 284),
 
-> If the chains are exploring the same space efficiently, the histograms should
-> be similar to one another and largely overlapping.
+> If the chains are exploring the same space efficiently, the histograms should be similar to one another and largely overlapping.
 
 ```{r}
 bb_sim_samples |>
@@ -337,8 +336,7 @@ Looks consistent across the four chains!
 brms::neff_ratio(bb_sim_samples)
 ```
 
-"Our 20,000 Markov chain values are about as useful as only 6800 independent
-samples (0.34 × 20000)." Happy that this number is greater than .1
+"Our 20,000 Markov chain values are about as useful as only 6800 independent samples (0.34 × 20000)." Happy that this number is greater than .1
 
 ```{r}
 bayesplot::mcmc_acf(bb_sim_samples$draws(variables = "pi"))
@@ -368,10 +366,7 @@ library(tidyverse)
 set_theme(theme_bw(base_size = 16, base_family = "Barlow"))
 ```
 
-"Think of Markov chains as a tour around the range of posterior possible values
-of a parameter (like µ or π or whatever). The chains move around that parameter
-and hopefully converge around it, but the chains need a tour manager to do that
-properly."
+"Think of Markov chains as a tour around the range of posterior possible values of a parameter (like µ or π or whatever). The chains move around that parameter and hopefully converge around it, but the chains need a tour manager to do that properly."
 
 ```{r}
 one_mh_iteration <- function(w, current) {
@@ -1537,8 +1532,7 @@ res |>
   )
 ```
 
-So across our cross validation and elpd, we can see that the temperature +
-location is performing quite well.
+So across our cross validation and elpd, we can see that the temperature + location is performing quite well.
 
 ## Chapter 12: Poisson & Negative Binomial Regression
 
@@ -2179,8 +2173,7 @@ predict(
 )
 ```
 
-Typically avoid naive bayes because assumes predictors are independent and all
-quantitative predictors are normally distributed.
+Typically avoid naive bayes because assumes predictors are independent and all quantitative predictors are normally distributed.
 
 ## Chapter 15: Hierarchical Models are Exciting
 
@@ -2246,8 +2239,7 @@ model_complete_pooling <- brm(
 tidy(model_complete_pooling, effects = "fixed", conf.level = 0.8)
 ```
 
-Since the 80% credible interval contains 0, we can't feel confident that age is
-impactful.
+Since the 80% credible interval contains 0, we can't feel confident that age is impactful.
 
 ```{r}
 model_complete_pooling |>
@@ -3543,8 +3535,7 @@ pp_check(airbnb_model_1, ndraws = 25) +
 
 Doesn't look half-bad.
 
-But we also have predictors like walk_score which are the same for each
-neighborhood but impact the understanding
+But we also have predictors like walk_score which are the same for each neighborhood but impact the understanding
 
 ```{r}
 priors <- c(
